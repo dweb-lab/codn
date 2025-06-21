@@ -4,20 +4,19 @@ CLI commands for code analysis features.
 
 import typer
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional
 from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, TextColumn, BarColumn, TimeRemainingColumn
 from rich.panel import Panel
-from rich.text import Text
+
+from rich.columns import Columns
 
 from ..utils.simple_ast import (
     find_function_references,
     extract_function_signatures,
     find_unused_imports,
-    extract_class_methods,
-    find_enclosing_function,
-    extract_inheritance_relations
+    extract_class_methods
 )
 from ..utils.os_utils import list_all_python_files_sync
 from ..utils.git_utils import is_valid_git_repo
@@ -110,28 +109,67 @@ def analyze_project(
 
             progress.advance(task)
 
-    # Display results
-    console.print("\n[green]Project Analysis Results[/green]")
+    # Display results with enhanced formatting
+    console.print()
+    console.print(Panel.fit(
+        "[bold blue]📊 Project Analysis Complete[/bold blue]",
+        style="blue"
+    ))
+    console.print()
 
-    # Summary table
-    table = Table(title="Project Statistics")
-    table.add_column("Metric", style="cyan")
-    table.add_column("Count", style="magenta", justify="right")
+    # Calculate derived metrics
+    avg_lines_per_file = stats["total_lines"] / stats["total_files"] if stats["total_files"] > 0 else 0
+    avg_functions_per_file = stats["total_functions"] / stats["total_files"] if stats["total_files"] > 0 else 0
+    code_quality_score = max(0, 100 - (stats["unused_imports"] * 2) - (stats["files_with_issues"] * 5))
 
-    table.add_row("Python Files", str(stats["total_files"]))
-    table.add_row("Total Lines", str(stats["total_lines"]))
-    table.add_row("Functions", str(stats["total_functions"]))
-    table.add_row("Classes", str(stats["total_classes"]))
-    table.add_row("Methods", str(stats["total_methods"]))
-    table.add_row("Files with Issues", str(stats["files_with_issues"]))
-    table.add_row("Unused Imports", str(stats["unused_imports"]))
+    # Create main statistics table with better formatting
+    stats_table = Table(title="📈 Project Overview", show_header=True, header_style="bold magenta")
+    stats_table.add_column("Metric", style="cyan", width=20)
+    stats_table.add_column("Value", style="bright_white", justify="right", width=10)
+    stats_table.add_column("Assessment", style="dim", width=20)
 
-    if is_valid_git_repo(path):
-        table.add_row("Git Repository", "✓", style="green")
-    else:
-        table.add_row("Git Repository", "✗", style="red")
+    # Add rows with assessments
+    stats_table.add_row("🐍 Python Files", str(stats["total_files"]), _get_file_count_assessment(stats["total_files"]))
+    stats_table.add_row("📝 Total Lines", f"{stats['total_lines']:,}", f"~{avg_lines_per_file:.0f} per file")
+    stats_table.add_row("⚡ Functions", str(stats["total_functions"]), f"~{avg_functions_per_file:.1f} per file")
+    stats_table.add_row("📦 Classes", str(stats["total_classes"]), _get_class_assessment(stats["total_classes"]))
+    stats_table.add_row("🔧 Methods", str(stats["total_methods"]), _get_method_ratio_assessment(stats["total_methods"], stats["total_classes"]))
 
-    console.print(table)
+    # Quality metrics with color coding
+    issue_style = "red" if stats["files_with_issues"] > 0 else "green"
+    import_style = "red" if stats["unused_imports"] > 5 else "yellow" if stats["unused_imports"] > 0 else "green"
+
+    stats_table.add_row("⚠️  Files with Issues", f"[{issue_style}]{stats['files_with_issues']}[/{issue_style}]", _get_issue_assessment(stats["files_with_issues"], stats["total_files"]))
+    stats_table.add_row("🗂️  Unused Imports", f"[{import_style}]{stats['unused_imports']}[/{import_style}]", _get_import_assessment(stats["unused_imports"]))
+
+    # Repository status
+    repo_status = "✅ Yes" if is_valid_git_repo(path) else "❌ No"
+    repo_style = "green" if is_valid_git_repo(path) else "red"
+    stats_table.add_row("🔄 Git Repository", f"[{repo_style}]{repo_status}[/{repo_style}]", "Version controlled" if is_valid_git_repo(path) else "Consider using git")
+
+    console.print(stats_table)
+    console.print()
+
+    # Code quality score panel
+    quality_color = "green" if code_quality_score >= 80 else "yellow" if code_quality_score >= 60 else "red"
+    quality_panel = Panel(
+        f"[bold {quality_color}]{code_quality_score:.0f}/100[/bold {quality_color}] 📊",
+        title="Code Quality Score",
+        title_align="center",
+        style=quality_color
+    )
+
+    # Recommendations panel
+    recommendations = _generate_recommendations(stats, is_valid_git_repo(path))
+    rec_panel = Panel(
+        recommendations,
+        title="💡 Recommendations",
+        title_align="left",
+        style="blue"
+    )
+
+    # Display panels side by side
+    console.print(Columns([quality_panel, rec_panel], equal=True, expand=True))
 
     # Detailed file information if verbose
     if verbose and file_details:
@@ -220,7 +258,22 @@ def find_references(
 
             progress.advance(task)
 
-    console.print(f"\n[cyan]Found {total_references} references to '{function_name}'[/cyan]")
+    console.print()
+    if total_references > 0:
+        console.print(Panel.fit(
+            f"[green]✅ Found {total_references} references to '[bold]{function_name}[/bold]'[/green]",
+            style="green"
+        ))
+    else:
+        console.print(Panel.fit(
+            f"[yellow]ℹ️  No references found for '[bold]{function_name}[/bold]'[/yellow]\n"
+            f"The function might be:\n"
+            f"• Unused (consider removing)\n"
+            f"• Only used in excluded files (try --include-tests)\n"
+            f"• Called dynamically or through reflection",
+            title="Search Results",
+            style="yellow"
+        ))
 
 
 @app.command("unused-imports")
@@ -283,12 +336,35 @@ def find_unused_imports_cmd(
 
             progress.advance(task)
 
+    console.print()
     if total_unused == 0:
-        console.print("[green]No unused imports found! 🎉[/green]")
+        console.print(Panel.fit(
+            "[green]🎉 Excellent! No unused imports found[/green]\n"
+            "Your code is clean and well-maintained!",
+            title="Import Analysis Results",
+            style="green"
+        ))
     else:
-        console.print(f"\n[cyan]Found {total_unused} unused imports in {files_with_unused} files[/cyan]")
+        impact_level = "high" if total_unused > 10 else "medium" if total_unused > 5 else "low"
+        impact_color = "red" if impact_level == "high" else "yellow" if impact_level == "medium" else "blue"
+
+        result_text = f"Found [bold {impact_color}]{total_unused}[/bold {impact_color}] unused imports in [bold]{files_with_unused}[/bold] files\n\n"
+        result_text += "💡 Benefits of removing unused imports:\n"
+        result_text += "• Faster import times\n"
+        result_text += "• Cleaner, more readable code\n"
+        result_text += "• Reduced dependencies\n"
+        result_text += "• Better IDE performance"
+
         if fix:
-            console.print("[yellow]Note: Automatic fixing is not yet implemented[/yellow]")
+            result_text += "\n\n[yellow]⚠️  Automatic fixing is not yet implemented[/yellow]"
+        else:
+            result_text += f"\n\n[dim]Use [bold]--fix[/bold] flag to automatically remove them (when available)[/dim]"
+
+        console.print(Panel(
+            result_text,
+            title=f"🔍 Import Analysis Results ({impact_level.title()} Impact)",
+            style=impact_color
+        ))
 
 
 @app.command("functions")
@@ -413,7 +489,120 @@ def analyze_functions(
         console.print(method_table)
 
     if not all_functions and not all_methods:
-        console.print("[yellow]No functions or methods found[/yellow]")
+        console.print()
+        console.print(Panel(
+            "[yellow]ℹ️  No functions or methods found in the analyzed files[/yellow]\n"
+            "This might indicate:\n"
+            "• Empty or non-functional Python files\n"
+            "• Files containing only imports or constants\n"
+            "• Analysis scope too narrow (try --include-tests)",
+            title="Analysis Results",
+            style="yellow"
+        ))
+    else:
+        # Add summary at the end
+        console.print()
+        summary_text = f"✨ Analysis complete! Found [bold cyan]{len(all_functions)}[/bold cyan] functions and [bold cyan]{len(all_methods)}[/bold cyan] methods"
+        if len(all_functions) > 20 or len(all_methods) > 20:
+            summary_text += "\n💡 Use filters like [dim]--class MyClass[/dim] or [dim]--signatures[/dim] for more focused analysis"
+
+        console.print(Panel.fit(summary_text, style="green"))
+
+
+def _get_file_count_assessment(count: int) -> str:
+    """Get assessment for file count."""
+    if count < 5:
+        return "Small project"
+    elif count < 20:
+        return "Medium project"
+    elif count < 50:
+        return "Large project"
+    else:
+        return "Very large project"
+
+
+def _get_class_assessment(count: int) -> str:
+    """Get assessment for class count."""
+    if count == 0:
+        return "Functional style"
+    elif count < 5:
+        return "Simple structure"
+    elif count < 20:
+        return "Moderate complexity"
+    else:
+        return "Complex architecture"
+
+
+def _get_method_ratio_assessment(methods: int, classes: int) -> str:
+    """Get assessment for method-to-class ratio."""
+    if classes == 0:
+        return "No classes"
+    ratio = methods / classes
+    if ratio < 3:
+        return "Simple classes"
+    elif ratio < 8:
+        return "Moderate complexity"
+    else:
+        return "Complex classes"
+
+
+def _get_issue_assessment(issues: int, total_files: int) -> str:
+    """Get assessment for files with issues."""
+    if issues == 0:
+        return "Clean codebase"
+    percentage = (issues / total_files) * 100
+    if percentage < 10:
+        return "Minor issues"
+    elif percentage < 25:
+        return "Some issues"
+    else:
+        return "Needs attention"
+
+
+def _get_import_assessment(unused: int) -> str:
+    """Get assessment for unused imports."""
+    if unused == 0:
+        return "Clean imports"
+    elif unused < 5:
+        return "Minor cleanup"
+    elif unused < 15:
+        return "Moderate cleanup"
+    else:
+        return "Major cleanup needed"
+
+
+def _generate_recommendations(stats: dict, has_git: bool) -> str:
+    """Generate recommendations based on analysis results."""
+    recommendations = []
+
+    # Code quality recommendations
+    if stats["unused_imports"] > 0:
+        recommendations.append(f"🧹 Remove {stats['unused_imports']} unused imports")
+
+    if stats["files_with_issues"] > 0:
+        recommendations.append(f"🔧 Fix issues in {stats['files_with_issues']} files")
+
+    # Project structure recommendations
+    if stats["total_functions"] > stats["total_methods"] * 3:
+        recommendations.append("📦 Consider organizing code into classes")
+
+    if stats["total_files"] > 20 and stats["total_classes"] < 5:
+        recommendations.append("🏗️  Consider modular architecture")
+
+    # Git recommendations
+    if not has_git:
+        recommendations.append("🔄 Initialize git repository for version control")
+
+    # General recommendations
+    avg_lines = stats["total_lines"] / stats["total_files"] if stats["total_files"] > 0 else 0
+    if avg_lines > 500:
+        recommendations.append("📝 Consider splitting large files")
+
+    if not recommendations:
+        recommendations.append("✅ Code structure looks good!")
+        recommendations.append("🔍 Run detailed analysis with --verbose")
+
+    return "\n".join(f"• {rec}" for rec in recommendations[:5])  # Limit to 5 recommendations
 
 
 if __name__ == "__main__":
