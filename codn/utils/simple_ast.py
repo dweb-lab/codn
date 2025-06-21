@@ -1,6 +1,5 @@
 import ast
-from typing import Optional, List, Tuple, Union, Dict, Set
-from pathlib import Path
+from typing import Optional, List, Tuple, Union, Dict
 
 
 def find_enclosing_function(content: str, line: int, character: int) -> Optional[str]:

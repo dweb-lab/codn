@@ -9,7 +9,6 @@ import pytest
 import asyncio
 import shutil
 from unittest.mock import Mock, patch, AsyncMock
-from pathlib import Path
 
 from codn.utils.pyright_lsp_client import (
     PyrightLSPClient,

@@ -7,10 +7,7 @@ including various repository states, error conditions, and edge cases.
 
 import pytest
 import subprocess
-import tempfile
-import shutil
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from codn.utils.git_utils import is_valid_git_repo
 
 

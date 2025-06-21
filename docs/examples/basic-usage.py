@@ -87,13 +87,13 @@ def demonstrate_reference_finding():
 
     # Find references to the 'greet' function
     references = find_function_references(SAMPLE_CODE, "greet")
-    print(f"References to 'greet' function:")
+    print("References to 'greet' function:")
     for line, col in references:
         print(f"  Line {line}, Column {col}")
 
     # Find references to the 'speak' method
     speak_refs = find_function_references(SAMPLE_CODE, "speak")
-    print(f"\nReferences to 'speak' method:")
+    print("\nReferences to 'speak' method:")
     for line, col in speak_refs:
         print(f"  Line {line}, Column {col}")
     print()
@@ -181,14 +181,14 @@ def analyze_real_file(filepath: str):
 
         # Show some details
         if functions:
-            print(f"\nFirst few functions:")
+            print("\nFirst few functions:")
             for func in functions[:3]:
                 args_str = ", ".join(func['args']) if func['args'] else ""
                 async_str = "async " if func['is_async'] else ""
                 print(f"  {async_str}def {func['name']}({args_str})")
 
         if unused:
-            print(f"\nUnused imports:")
+            print("\nUnused imports:")
             for name, line in unused[:5]:  # Show first 5
                 print(f"  Line {line}: {name}")
 

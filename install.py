@@ -87,7 +87,7 @@ def main():
     project_type = detect_project_type()
     in_venv = is_in_virtual_env()
 
-    print(f"\n📍 Environment Detection:")
+    print("\n📍 Environment Detection:")
     print(f"   Project type: {project_type}")
     print(f"   Virtual environment: {'Yes' if in_venv else 'No'}")
 
@@ -95,19 +95,19 @@ def main():
     uv_available, uv_version = check_uv()
     pip_available, pip_version = check_pip()
 
-    print(f"\n📦 Package Managers:")
+    print("\n📦 Package Managers:")
     if uv_available:
         print_colored(f"   ✅ uv: {uv_version}", "green")
     else:
-        print_colored(f"   ❌ uv: Not available", "red")
+        print_colored("   ❌ uv: Not available", "red")
 
     if pip_available:
         print_colored(f"   ✅ pip: {pip_version}", "green")
     else:
-        print_colored(f"   ❌ pip: Not available", "red")
+        print_colored("   ❌ pip: Not available", "red")
 
     # Provide recommendations
-    print(f"\n💡 Recommended Installation:")
+    print("\n💡 Recommended Installation:")
 
     if project_type == "development":
         print_colored("   📚 Development Setup Detected", "yellow")
@@ -133,7 +133,7 @@ def main():
             print("   Please install pip or uv first.")
 
     # Installation commands
-    print(f"\n⚡ Quick Install Commands:")
+    print("\n⚡ Quick Install Commands:")
 
     if uv_available:
         if project_type == "development":
@@ -149,12 +149,12 @@ def main():
 
     # Install uv if not available
     if not uv_available:
-        print(f"\n🔧 To install uv (recommended):")
+        print("\n🔧 To install uv (recommended):")
         print_colored("   curl -LsSf https://astral.sh/uv/install.sh | sh", "cyan")
         print("   # Then restart your terminal")
 
     # Show usage examples
-    print(f"\n📖 After Installation:")
+    print("\n📖 After Installation:")
     print("   codn                    # Analyze current project")
     print("   codn unused             # Find unused imports")
     print("   codn refs <function>    # Find function references")
@@ -162,13 +162,13 @@ def main():
 
     # Environment-specific notes
     if project_type == "development":
-        print(f"\n🔨 Development Notes:")
+        print("\n🔨 Development Notes:")
         print("   • Use 'uv run codn' if installed with uv sync")
         print("   • Use 'python -m codn.cli' for direct execution")
         print("   • Run tests with 'uv run pytest' or 'python run_tests.py'")
 
     if not in_venv and project_type != "development" and pip_available:
-        print(f"\n⚠️  Virtual Environment Recommendation:")
+        print("\n⚠️  Virtual Environment Recommendation:")
         print("   Consider using a virtual environment to avoid conflicts:")
         print("   python -m venv codn-env")
         print("   source codn-env/bin/activate")

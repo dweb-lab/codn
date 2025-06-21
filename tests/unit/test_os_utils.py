@@ -6,11 +6,8 @@ gitignore handling, and async file discovery functionality.
 """
 
 import pytest
-import asyncio
-import tempfile
 import pathspec
-from pathlib import Path
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import patch
 from codn.utils.os_utils import (
     load_gitignore,
     should_ignore,

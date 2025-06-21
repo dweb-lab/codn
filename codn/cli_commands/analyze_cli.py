@@ -359,7 +359,7 @@ def find_unused_imports_cmd(
                         total_unused += 1
 
                         if fix:
-                            console.print(f"    [dim]Note: Automatic fixing not implemented yet[/dim]")
+                            console.print("    [dim]Note: Automatic fixing not implemented yet[/dim]")
 
             except Exception as e:
                 console.print(f"[red]Error analyzing {file_path}: {e}[/red]")
@@ -388,7 +388,7 @@ def find_unused_imports_cmd(
         if fix:
             result_text += "\n\n[yellow]⚠️  Automatic fixing is not yet implemented[/yellow]"
         else:
-            result_text += f"\n\n[dim]Use [bold]--fix[/bold] flag to automatically remove them (when available)[/dim]"
+            result_text += "\n\n[dim]Use [bold]--fix[/bold] flag to automatically remove them (when available)[/dim]"
 
         console.print(Panel(
             result_text,

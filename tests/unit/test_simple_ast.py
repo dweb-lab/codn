@@ -7,7 +7,6 @@ including function detection, inheritance analysis, and edge cases.
 
 import pytest
 import ast
-from typing import List, Tuple, Optional
 from codn.utils.simple_ast import (
     find_enclosing_function,
     extract_inheritance_relations,

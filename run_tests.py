@@ -10,7 +10,7 @@ import sys
 import argparse
 import subprocess
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 
 def run_command(cmd: List[str], description: str) -> int:
