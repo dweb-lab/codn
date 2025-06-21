@@ -1,0 +1,113 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main, develop, study ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: uv sync --all-extras --dev
+
+    - name: Run ruff linting
+      run: |
+        echo "🔍 Running ruff linting..."
+        uv run ruff check . --output-format=github
+
+    - name: Run ruff formatting check
+      run: |
+        echo "🎨 Checking code formatting..."
+        uv run ruff format --check .
+
+    - name: Run mypy type checking
+      run: |
+        echo "🔍 Running mypy type checking..."
+        uv run mypy codn --ignore-missing-imports
+      continue-on-error: true
+
+    - name: Run unit tests
+      run: |
+        echo "🧪 Running unit tests..."
+        uv run pytest tests/unit/ --cov=codn --cov-report=xml --cov-report=term-missing
+
+    - name: Run integration tests
+      run: |
+        echo "🔗 Running integration tests..."
+        uv run pytest tests/integration/ -v
+      continue-on-error: true
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-${{ matrix.python-version }}
+        fail_ci_if_error: false
+
+  security-check:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Set up Python
+      run: uv python install 3.11
+
+    - name: Install dependencies
+      run: uv sync
+
+    - name: Run bandit security check
+      run: |
+        echo "🔒 Running security checks..."
+        uv tool install bandit
+        bandit -r codn/ -f json -o bandit-report.json || true
+        bandit -r codn/ || true
+
+    - name: Upload security report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-report
+        path: bandit-report.json
+
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Set up Python
+      run: uv python install 3.11
+
+    - name: Install pre-commit
+      run: uv tool install pre-commit
+
+    - name: Run pre-commit on all files
+      run: |
+        echo "🪝 Running pre-commit hooks..."
+        pre-commit run --all-files --show-diff-on-failure

@@ -1,0 +1,268 @@
+# Ruff configuration for codn project
+# https://docs.astral.sh/ruff/
+
+# Basic settings
+line-length = 88
+target-version = "py38"
+indent-width = 4
+
+# Include and exclude patterns
+include = ["*.py", "*.pyi", "**/pyproject.toml", "*.ipynb"]
+extend-exclude = [
+    "__pycache__",
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    "*.egg-info",
+]
+
+[lint]
+# Rule selection
+select = [
+    # Pyflakes
+    "F",
+    # pycodestyle
+    "E", "W",
+    # isort
+    "I",
+    # pep8-naming
+    "N",
+    # pyupgrade
+    "UP",
+    # flake8-2020
+    "YTT",
+    # flake8-annotations
+    "ANN",
+    # flake8-async
+    "ASYNC",
+    # flake8-bandit
+    "S",
+    # flake8-blind-except
+    "BLE",
+    # flake8-boolean-trap
+    "FBT",
+    # flake8-bugbear
+    "B",
+    # flake8-builtins
+    "A",
+    # flake8-commas
+    "COM",
+    # flake8-comprehensions
+    "C4",
+    # flake8-datetimez
+    "DTZ",
+    # flake8-debugger
+    "T10",
+    # flake8-django
+    "DJ",
+    # flake8-errmsg
+    "EM",
+    # flake8-executable
+    "EXE",
+    # flake8-implicit-str-concat
+    "ISC",
+    # flake8-import-conventions
+    "ICN",
+    # flake8-logging-format
+    "G",
+    # flake8-no-pep420
+    "INP",
+    # flake8-pie
+    "PIE",
+    # flake8-print
+    "T20",
+    # flake8-pyi
+    "PYI",
+    # flake8-pytest-style
+    "PT",
+    # flake8-quotes
+    "Q",
+    # flake8-raise
+    "RSE",
+    # flake8-return
+    "RET",
+    # flake8-self
+    "SLF",
+    # flake8-simplify
+    "SIM",
+    # flake8-tidy-imports
+    "TID",
+    # flake8-type-checking
+    "TCH",
+    # flake8-unused-arguments
+    "ARG",
+    # flake8-use-pathlib
+    "PTH",
+    # pandas-vet
+    "PD",
+    # pygrep-hooks
+    "PGH",
+    # Pylint
+    "PL",
+    # tryceratops
+    "TRY",
+    # flynt
+    "FLY",
+    # NumPy-specific rules
+    "NPY",
+    # Airflow
+    "AIR",
+    # Perflint
+    "PERF",
+    # Refurb
+    "FURB",
+    # flake8-logging
+    "LOG",
+    # Ruff-specific rules
+    "RUF",
+]
+
+# Rules to ignore
+ignore = [
+    # Allow non-abstract empty methods in abstract base classes
+    "B027",
+    # Allow boolean positional values in function calls
+    "FBT003",
+    # Ignore complexity
+    "C901",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
+    # Allow print statements (useful for CLI tools)
+    "T201",
+    # Allow assert statements
+    "S101",
+    # Allow subprocess without shell=False
+    "S602",
+    # Allow hardcoded passwords in tests
+    "S105",
+    "S106",
+    # Allow any type annotations
+    "ANN401",
+    # Allow missing docstrings for now
+    "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107",
+    # Allow relative imports
+    "TID252",
+    # Allow magic value comparisons
+    "PLR2004",
+    # Allow too many arguments
+    "PLR0913",
+    # Allow catching broad exceptions
+    "BLE001",
+    # Allow raising exceptions without from
+    "TRY003",
+    # Allow long messages in exceptions
+    "TRY003",
+]
+
+# Allow unfixable rules
+unfixable = [
+    # Don't auto-remove unused imports (might be needed for re-exports)
+    "F401",
+]
+
+# Files that should be ignored for specific rules
+[lint.per-file-ignores]
+"tests/**/*.py" = [
+    # Tests can use magic values
+    "PLR2004",
+    # Tests can use assert
+    "S101",
+    # Tests can have many arguments
+    "PLR0913",
+    # Tests can have complex functions
+    "PLR0915",
+    # Tests can import modules not used directly
+    "F401",
+    # Allow subprocess in tests
+    "S602",
+    "S603",
+    # Allow hardcoded passwords in tests
+    "S105",
+    "S106",
+    # Allow print statements in tests
+    "T201",
+]
+
+"docs/**/*.py" = [
+    # Documentation examples can have print statements
+    "T201",
+    # Documentation examples can use magic values
+    "PLR2004",
+    # Allow unused imports in examples
+    "F401",
+]
+
+"scripts/**/*.py" = [
+    # Scripts can use print statements
+    "T201",
+    # Scripts can use subprocess
+    "S602",
+    "S603",
+    # Scripts can have complex logic
+    "PLR0915",
+    "C901",
+]
+
+"install.py" = [
+    # Installation script can use subprocess
+    "S602",
+    "S603",
+    # Allow print statements
+    "T201",
+]
+
+"setup.py" = [
+    # Setup scripts are special
+    "D100",
+    "T201",
+]
+
+# Specific rule configurations
+[lint.isort]
+known-first-party = ["codn"]
+force-single-line = false
+lines-after-imports = 2
+no-sections = false
+split-on-trailing-comma = true
+
+[lint.mccabe]
+max-complexity = 10
+
+[lint.pycodestyle]
+max-doc-length = 88
+max-line-length = 88
+
+[lint.pydocstyle]
+convention = "google"
+
+[lint.pylint]
+max-args = 8
+max-branches = 15
+max-returns = 8
+max-statements = 60
+
+[lint.flake8-quotes]
+docstring-quotes = "double"
+inline-quotes = "double"
+
+[lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
+[lint.flake8-type-checking]
+strict = false
+
+# Format configuration
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+# Docstring formatting
+docstring-code-format = true
+docstring-code-line-length = 80

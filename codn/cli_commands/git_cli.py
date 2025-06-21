@@ -1,6 +1,9 @@
-import typer
 from pathlib import Path
+
+import typer
+
 from codn.utils import git_utils
+
 
 app = typer.Typer(help="Git related commands")
 
@@ -8,7 +11,7 @@ app = typer.Typer(help="Git related commands")
 @app.command()
 def check(
     path: str = typer.Argument(".", help="Path to the Git repository"),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output")
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
 ) -> None:
     """
     Check if the given path is a valid and healthy Git repository.
@@ -35,7 +38,9 @@ def check(
         if git_utils.is_valid_git_repo(full_path):
             typer.echo(f"✅ [OK] '{full_path}' is a valid Git repository.")
         else:
-            typer.echo(f"❌ [FAIL] '{full_path}' is NOT a valid Git repository.", err=True)
+            typer.echo(
+                f"❌ [FAIL] '{full_path}' is NOT a valid Git repository.", err=True
+            )
             raise typer.Exit(code=1)
 
     except KeyboardInterrupt:

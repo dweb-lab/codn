@@ -1,12 +1,24 @@
-import pathspec
 from pathlib import Path
-from typing import AsyncGenerator, Set, Union, Optional
+from typing import AsyncGenerator, Optional, Set, Union
+
+import pathspec
+
 
 # Common directories to skip during file traversal
 DEFAULT_SKIP_DIRS = {
-    '.git', '.github', '__pycache__', '.venv', 'venv', 'env',
-    '.mypy_cache', '.pytest_cache', 'node_modules',
-    'dist', 'build', '.idea', '.vscode'
+    ".git",
+    ".github",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "env",
+    ".mypy_cache",
+    ".pytest_cache",
+    "node_modules",
+    "dist",
+    "build",
+    ".idea",
+    ".vscode",
 }
 
 
@@ -28,7 +40,7 @@ def should_ignore(
     file_path: Path,
     root_path: Path,
     ignored_dirs: Set[str],
-    gitignore_spec: pathspec.PathSpec
+    gitignore_spec: pathspec.PathSpec,
 ) -> bool:
     """
     Check if a file should be ignored based on directory names and gitignore patterns.
@@ -57,7 +69,7 @@ def should_ignore(
 
 def list_all_python_files_sync(
     root: Union[str, Path] = ".",
-    ignored_dirs: Optional[Set[str]] = None
+    ignored_dirs: Optional[Set[str]] = None,
 ) -> list[Path]:
     """
     Synchronously return all Python files in the directory tree.
@@ -85,7 +97,7 @@ def list_all_python_files_sync(
 
 async def list_all_python_files(
     root: Union[str, Path] = ".",
-    ignored_dirs: Optional[Set[str]] = None
+    ignored_dirs: Optional[Set[str]] = None,
 ) -> AsyncGenerator[Path, None]:
     """
     Asynchronously yield all Python files in the directory tree.
@@ -116,4 +128,5 @@ async def test() -> None:
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(test())

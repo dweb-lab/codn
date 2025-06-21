@@ -187,11 +187,51 @@ codn refs main          # Find references
 codn funcs             # List functions
 ```
 
+## 🌐 Network Optimization (For Users in China)
+
+If you're experiencing slow GitHub access, you can use a proxy to speed up downloads:
+
+### Quick Proxy Setup
+```bash
+# Set proxy environment variables
+export https_proxy=http://127.0.0.1:7890
+export http_proxy=http://127.0.0.1:7890
+export all_proxy=socks5://127.0.0.1:7890
+
+# Then run installation commands
+uv tool install codn
+# or
+make install-hooks
+```
+
+### Automated Proxy Setup
+```bash
+# Run our proxy setup helper
+bash scripts/setup-proxy.sh
+
+# This will:
+# - Test your connection speed
+# - Configure proxy if needed
+# - Set up shell functions for easy proxy control
+```
+
+### For Git Operations
+```bash
+# Configure git to use proxy
+git config --global http.proxy http://127.0.0.1:7890
+git config --global https.proxy http://127.0.0.1:7890
+
+# Remove proxy later if needed
+git config --global --unset http.proxy
+git config --global --unset https.proxy
+```
+
 ## 🛠️ Common Installation Issues
 
 ### uv Not Found
 ```bash
-# Install uv
+# Install uv (with proxy if needed)
+export https_proxy=http://127.0.0.1:7890
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Restart your terminal or source your shell config
@@ -210,6 +250,7 @@ pip install --user codn
 ```
 
 ### Import Errors
+### Environment Management
 ```bash
 # Check if codn is properly installed
 python -c "import codn; print(codn.__version__)"
@@ -217,6 +258,20 @@ python -c "import codn; print(codn.__version__)"
 # If using virtual environment, make sure it's activated
 which python
 which codn
+```
+
+### Proxy Configuration Issues
+```bash
+# Test GitHub connectivity
+curl -s --connect-timeout 5 https://api.github.com/zen
+
+# If slow, set up proxy
+bash scripts/setup-proxy.sh
+
+# Or manually:
+export https_proxy=http://127.0.0.1:7890
+export http_proxy=http://127.0.0.1:7890
+export all_proxy=socks5://127.0.0.1:7890
 ```
 
 ### Command Not Found
@@ -232,20 +287,22 @@ export PATH="$HOME/.local/bin:$PATH"
 
 ## 📊 Installation Methods Comparison
 
-| Method | Speed | Isolation | Global Access | Dev Mode |
-|--------|-------|-----------|---------------|----------|
-| `uv tool install` | ⚡⚡⚡ | ✅ | ✅ | ❌ |
-| `pip install` | ⚡ | ❌ | ✅ | ❌ |
-| `pip + venv` | ⚡ | ✅ | ❌ | ❌ |
-| `uv sync` (dev) | ⚡⚡⚡ | ✅ | ❌ | ✅ |
-| `pip -e .` (dev) | ⚡ | ❌ | ✅ | ✅ |
+| Method | Speed | Isolation | Global Access | Dev Mode | Proxy Support |
+|--------|-------|-----------|---------------|----------|---------------|
+| `uv tool install` | ⚡⚡⚡ | ✅ | ✅ | ❌ | ✅ |
+| `pip install` | ⚡ | ❌ | ✅ | ❌ | ✅ |
+| `pip + venv` | ⚡ | ✅ | ❌ | ❌ | ✅ |
+| `uv sync` (dev) | ⚡⚡⚡ | ✅ | ❌ | ✅ | ✅ |
+| `pip -e .` (dev) | ⚡ | ❌ | ✅ | ✅ | ✅ |
+
+💡 **Note**: All methods support proxy configuration for faster downloads in restricted networks.
 
 ## 🚀 Quick Start After Installation
 
 ### Most Common Commands
 ```bash
 codn                    # Analyze current project
-codn unused             # Find unused imports  
+codn unused             # Find unused imports
 codn refs <function>    # Find function references
 codn funcs              # List all functions
 ```
@@ -285,6 +342,14 @@ else
     echo "👤 User installation"
     echo "Use: uv tool install codn"
 fi
+
+# Check network connectivity
+echo "🌐 Testing GitHub connectivity..."
+if curl -s --connect-timeout 5 https://api.github.com/zen >/dev/null; then
+    echo "✅ Direct GitHub access works"
+else
+    echo "⚠️  Consider using proxy: bash scripts/setup-proxy.sh"
+fi
 ```
 
 ### Support Resources
@@ -303,5 +368,18 @@ After installation, check out:
 
 **Need help?** Run our installation helper:
 ```bash
+# Installation helper
 curl -sSL https://raw.githubusercontent.com/dweb-lab/codn/main/install.py | python3
+
+# Proxy setup helper (for faster GitHub access)
+bash scripts/setup-proxy.sh
+```
+
+**For users in China or with slow GitHub access:**
+```bash
+# Quick proxy setup
+export https_proxy=http://127.0.0.1:7890 http_proxy=http://127.0.0.1:7890 all_proxy=socks5://127.0.0.1:7890
+
+# Then run any installation command
+uv tool install codn
 ```

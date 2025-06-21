@@ -5,12 +5,14 @@ This module contains comprehensive tests for Python AST analysis functionality,
 including function detection, inheritance analysis, and edge cases.
 """
 
-import pytest
 import ast
+
+import pytest
+
 from codn.utils.simple_ast import (
-    find_enclosing_function,
+    _extract_base_name,
     extract_inheritance_relations,
-    _extract_base_name
+    find_enclosing_function,
 )
 
 
@@ -313,7 +315,7 @@ class AnotherClass(package.module.BaseClass):
         result = extract_inheritance_relations(content)
         assert set(result) == {
             ("MyClass", "some_module.BaseClass"),
-            ("AnotherClass", "package.module.BaseClass")
+            ("AnotherClass", "package.module.BaseClass"),
         }
 
     def test_builtin_inheritance(self):
@@ -332,7 +334,7 @@ class MyException(Exception):
         assert set(result) == {
             ("MyList", "list"),
             ("MyDict", "dict"),
-            ("MyException", "Exception")
+            ("MyException", "Exception"),
         }
 
     def test_complex_inheritance_scenario(self):
@@ -358,7 +360,7 @@ class E(collections.abc.Mapping):
             ("B", "A"),
             ("D", "B"),
             ("D", "C"),
-            ("E", "collections.abc.Mapping")
+            ("E", "collections.abc.Mapping"),
         }
         assert set(result) == expected
 
@@ -416,7 +418,7 @@ class TestExtractBaseName:
         node = ast.Attribute(
             value=ast.Name(id="module", ctx=ast.Load()),
             attr="BaseClass",
-            ctx=ast.Load()
+            ctx=ast.Load(),
         )
         result = _extract_base_name(node)
         assert result == "module.BaseClass"
@@ -428,10 +430,10 @@ class TestExtractBaseName:
             value=ast.Attribute(
                 value=ast.Name(id="package", ctx=ast.Load()),
                 attr="module",
-                ctx=ast.Load()
+                ctx=ast.Load(),
             ),
             attr="BaseClass",
-            ctx=ast.Load()
+            ctx=ast.Load(),
         )
         result = _extract_base_name(node)
         assert result == "package.module.BaseClass"
@@ -449,7 +451,7 @@ class TestExtractBaseName:
         node = ast.Attribute(
             value=ast.Constant(value=42),  # Unsupported value type
             attr="BaseClass",
-            ctx=ast.Load()
+            ctx=ast.Load(),
         )
         result = _extract_base_name(node)
         assert result == "BaseClass"
@@ -464,20 +466,24 @@ class TestEdgeCasesAndIntegration:
         lines = ["# Large file simulation"]
 
         for i in range(50):
-            lines.extend([
-                f"class Class{i}:",
-                f"    def method_{i}(self):",
-                f"        print('Method {i}')  # Line for class {i}",
-                f"        return {i}",
-                ""
-            ])
+            lines.extend(
+                [
+                    f"class Class{i}:",
+                    f"    def method_{i}(self):",
+                    f"        print('Method {i}')  # Line for class {i}",
+                    f"        return {i}",
+                    "",
+                ]
+            )
 
         content = "\n".join(lines)
 
         # Test finding function in the middle
         # Each class block is 5 lines starting from line 1, so find a method line
         # Class 10's method should be around line 1 + (10 * 5) + 2 = 53
-        method_line = 1 + (10 * 5) + 2  # First line + (class_index * lines_per_class) + method_line_offset
+        method_line = (
+            1 + (10 * 5) + 2
+        )  # First line + (class_index * lines_per_class) + method_line_offset
         result = find_enclosing_function(content, method_line, 0)
         assert result is not None
         assert "method_" in result
@@ -531,12 +537,15 @@ def documented_function():
         result = find_enclosing_function(content, 8, 0)
         assert result == "documented_function"
 
-    @pytest.mark.parametrize("line_num,expected", [
-        (2, "func1"),  # Line 2 is inside func1
-        (5, "func2"),  # Line 5 is inside func2
-        (7, None),     # Line 7 is between functions (comment)
-        (10, "func3"), # Line 10 is inside func3
-    ])
+    @pytest.mark.parametrize(
+        "line_num,expected",
+        [
+            (2, "func1"),  # Line 2 is inside func1
+            (5, "func2"),  # Line 5 is inside func2
+            (7, None),  # Line 7 is between functions (comment)
+            (10, "func3"),  # Line 10 is inside func3
+        ],
+    )
     def test_parametrized_function_detection(self, line_num, expected):
         """Test function detection with various line numbers."""
         content = """

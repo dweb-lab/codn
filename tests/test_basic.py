@@ -4,9 +4,10 @@ Basic test file to verify pytest configuration.
 This file contains simple tests to ensure that the pytest setup is working correctly.
 """
 
-import pytest
 import asyncio
 from pathlib import Path
+
+import pytest
 
 
 class TestBasicFunctionality:
@@ -41,16 +42,19 @@ class TestBasicFunctionality:
         assert "name" in data
         assert "missing" not in data
 
-    @pytest.mark.parametrize("input_val,expected", [
-        (0, 0),
-        (1, 1),
-        (2, 4),
-        (3, 9),
-        (4, 16),
-    ])
+    @pytest.mark.parametrize(
+        "input_val,expected",
+        [
+            (0, 0),
+            (1, 1),
+            (2, 4),
+            (3, 9),
+            (4, 16),
+        ],
+    )
     def test_square_function(self, input_val, expected):
         """Test square function with different inputs."""
-        assert input_val ** 2 == expected
+        assert input_val**2 == expected
 
 
 class TestAsyncFunctionality:
@@ -59,6 +63,7 @@ class TestAsyncFunctionality:
     @pytest.mark.asyncio
     async def test_simple_async(self):
         """Test simple async functionality."""
+
         async def async_function():
             await asyncio.sleep(0.01)
             return "async result"
@@ -69,6 +74,7 @@ class TestAsyncFunctionality:
     @pytest.mark.asyncio
     async def test_async_with_exception(self):
         """Test async function that raises exception."""
+
         async def failing_async_function():
             await asyncio.sleep(0.01)
             raise ValueError("Test error")
@@ -79,6 +85,7 @@ class TestAsyncFunctionality:
     @pytest.mark.asyncio
     async def test_concurrent_tasks(self):
         """Test running concurrent async tasks."""
+
         async def task(delay, value):
             await asyncio.sleep(delay)
             return value * 2
@@ -160,7 +167,7 @@ class TestFixtures:
         return {
             "users": ["alice", "bob", "charlie"],
             "scores": [95, 87, 92],
-            "active": True
+            "active": True,
         }
 
     def test_fixture_usage(self, sample_data):
@@ -188,6 +195,7 @@ class TestSlowOperations:
     def test_slow_operation(self):
         """Test marked as slow."""
         import time
+
         time.sleep(0.1)  # Simulate slow operation
         assert True
 

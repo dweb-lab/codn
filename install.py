@@ -14,7 +14,9 @@ from pathlib import Path
 def run_command(cmd, capture_output=True, text=True):
     """Run a command and return the result."""
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=capture_output, text=text)
+        result = subprocess.run(
+            cmd, check=False, shell=True, capture_output=capture_output, text=text
+        )
         return result.returncode == 0, result.stdout, result.stderr
     except Exception as e:
         return False, "", str(e)
@@ -40,8 +42,8 @@ def check_pip():
 
 def is_in_virtual_env():
     """Check if we're in a virtual environment."""
-    return hasattr(sys, 'real_prefix') or (
-        hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix
+    return hasattr(sys, "real_prefix") or (
+        hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
     )
 
 
@@ -69,7 +71,7 @@ def print_colored(text, color=""):
         "cyan": "\033[96m",
         "white": "\033[97m",
         "bold": "\033[1m",
-        "end": "\033[0m"
+        "end": "\033[0m",
     }
 
     if color in colors:
@@ -124,9 +126,13 @@ def main():
             print("   (Faster, better dependency management)")
         elif pip_available:
             if not in_venv:
-                print_colored("   ⚠️  Consider creating a virtual environment:", "yellow")
+                print_colored(
+                    "   ⚠️  Consider creating a virtual environment:", "yellow"
+                )
                 print("   python -m venv venv")
-                print("   source venv/bin/activate  # On Windows: venv\\Scripts\\activate")
+                print(
+                    "   source venv/bin/activate  # On Windows: venv\\Scripts\\activate"
+                )
             print_colored("   🚀 Use: pip install codn", "green")
         else:
             print_colored("   ❌ No package manager available!", "red")

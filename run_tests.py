@@ -6,9 +6,9 @@ This script provides a convenient way to run different types of tests
 with various options and configurations.
 """
 
-import sys
 import argparse
 import subprocess
+import sys
 from pathlib import Path
 from typing import List
 
@@ -51,124 +51,137 @@ Examples:
   python run_tests.py --watch            # Run in watch mode
   python run_tests.py --debug            # Run with debug output
   python run_tests.py --file tests/test_specific.py  # Run specific file
-        """
+        """,
     )
 
     # Test selection options
     test_group = parser.add_mutually_exclusive_group()
     test_group.add_argument(
-        "--unit", "-u",
+        "--unit",
+        "-u",
         action="store_true",
-        help="Run unit tests only"
+        help="Run unit tests only",
     )
     test_group.add_argument(
-        "--integration", "-i",
+        "--integration",
+        "-i",
         action="store_true",
-        help="Run integration tests only"
+        help="Run integration tests only",
     )
     test_group.add_argument(
-        "--slow", "-s",
+        "--slow",
+        "-s",
         action="store_true",
-        help="Run slow tests only"
+        help="Run slow tests only",
     )
     test_group.add_argument(
-        "--fast", "-f",
+        "--fast",
+        "-f",
         action="store_true",
-        help="Run fast tests only (exclude slow tests)"
+        help="Run fast tests only (exclude slow tests)",
     )
     test_group.add_argument(
-        "--network", "-n",
+        "--network",
+        "-n",
         action="store_true",
-        help="Run network tests only"
+        help="Run network tests only",
     )
     test_group.add_argument(
         "--no-network",
         action="store_true",
-        help="Run tests without network requirements"
+        help="Run tests without network requirements",
     )
 
     # Test execution options
     parser.add_argument(
-        "--coverage", "-c",
+        "--coverage",
+        "-c",
         action="store_true",
-        help="Run tests with coverage report"
+        help="Run tests with coverage report",
     )
     parser.add_argument(
         "--html-coverage",
         action="store_true",
-        help="Generate HTML coverage report"
+        help="Generate HTML coverage report",
     )
     parser.add_argument(
-        "--parallel", "-p",
+        "--parallel",
+        "-p",
         action="store_true",
-        help="Run tests in parallel using pytest-xdist"
+        help="Run tests in parallel using pytest-xdist",
     )
     parser.add_argument(
-        "--watch", "-w",
+        "--watch",
+        "-w",
         action="store_true",
-        help="Run tests in watch mode"
+        help="Run tests in watch mode",
     )
     parser.add_argument(
-        "--debug", "-d",
+        "--debug",
+        "-d",
         action="store_true",
-        help="Run tests with debug output"
+        help="Run tests with debug output",
     )
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="count",
         default=0,
-        help="Increase verbosity (can be used multiple times)"
+        help="Increase verbosity (can be used multiple times)",
     )
     parser.add_argument(
         "--file",
         type=str,
-        help="Run specific test file"
+        help="Run specific test file",
     )
     parser.add_argument(
-        "--marker", "-m",
+        "--marker",
+        "-m",
         type=str,
-        help="Run tests with specific marker"
+        help="Run tests with specific marker",
     )
     parser.add_argument(
-        "--keyword", "-k",
+        "--keyword",
+        "-k",
         type=str,
-        help="Run tests matching keyword expression"
+        help="Run tests matching keyword expression",
     )
 
     # Output options
     parser.add_argument(
-        "--quiet", "-q",
+        "--quiet",
+        "-q",
         action="store_true",
-        help="Quiet output"
+        help="Quiet output",
     )
     parser.add_argument(
         "--tb",
         choices=["short", "long", "line", "no"],
         default="short",
-        help="Traceback format"
+        help="Traceback format",
     )
     parser.add_argument(
         "--maxfail",
         type=int,
         default=0,
-        help="Maximum number of failures before stopping"
+        help="Maximum number of failures before stopping",
     )
 
     # Additional options
     parser.add_argument(
         "--install-deps",
         action="store_true",
-        help="Install test dependencies before running tests"
+        help="Install test dependencies before running tests",
     )
     parser.add_argument(
         "--no-cov",
         action="store_true",
-        help="Disable coverage even if enabled by default"
+        help="Disable coverage even if enabled by default",
     )
     parser.add_argument(
         "--pytest-args",
         type=str,
-        help="Additional arguments to pass to pytest"
+        help="Additional arguments to pass to pytest",
     )
 
     args = parser.parse_args()

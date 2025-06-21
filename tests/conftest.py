@@ -5,19 +5,20 @@ This file contains shared fixtures and configuration for all tests.
 """
 
 import asyncio
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
-from typing import Generator, AsyncGenerator
-from unittest.mock import Mock, AsyncMock
+from typing import AsyncGenerator, Generator
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from loguru import logger
 
-from codn.utils.pyright_lsp_client import PyrightLSPClient, LSPConfig, path_to_file_uri
+from codn.utils.pyright_lsp_client import LSPConfig, PyrightLSPClient, path_to_file_uri
 
 
 # ==================== Test Configuration ====================
+
 
 def pytest_configure(config):
     """Configure pytest behavior."""
@@ -48,6 +49,7 @@ def pytest_collection_modifyitems(config, items):
 
 
 # ==================== Shared Fixtures ====================
+
 
 @pytest.fixture
 def temp_dir() -> Generator[Path, None, None]:
@@ -148,7 +150,7 @@ def lsp_config() -> LSPConfig:
     return LSPConfig(
         timeout=10.0,  # Shorter timeout for tests
         enable_file_watcher=False,  # Disable file watcher in tests
-        log_level="ERROR"  # Reduce log noise
+        log_level="ERROR",  # Reduce log noise
     )
 
 
@@ -169,17 +171,21 @@ async def mock_lsp_client(lsp_config: LSPConfig) -> AsyncGenerator[Mock, None]:
     mock_client.send_definition = AsyncMock(return_value=[])
     mock_client.send_document_symbol = AsyncMock(return_value=[])
 
-    yield mock_client
+    return mock_client
 
 
 @pytest.fixture
-async def real_lsp_client(temp_dir: Path, lsp_config: LSPConfig) -> AsyncGenerator[PyrightLSPClient, None]:
+async def real_lsp_client(
+    temp_dir: Path, lsp_config: LSPConfig
+) -> AsyncGenerator[PyrightLSPClient, None]:
     """Create a real LSP client for integration tests."""
     import shutil
 
     # Check if pyright-langserver is available
     if not shutil.which("pyright-langserver"):
-        pytest.skip("pyright-langserver not found. Install with: npm install -g pyright")
+        pytest.skip(
+            "pyright-langserver not found. Install with: npm install -g pyright"
+        )
 
     root_uri = path_to_file_uri(str(temp_dir))
     client = PyrightLSPClient(root_uri, lsp_config)
@@ -207,8 +213,8 @@ def sample_symbols() -> list:
                 "uri": "file:///test.py",
                 "range": {
                     "start": {"line": 2, "character": 0},
-                    "end": {"line": 15, "character": 0}
-                }
+                    "end": {"line": 15, "character": 0},
+                },
             },
             "children": [
                 {
@@ -218,9 +224,9 @@ def sample_symbols() -> list:
                         "uri": "file:///test.py",
                         "range": {
                             "start": {"line": 5, "character": 4},
-                            "end": {"line": 6, "character": 25}
-                        }
-                    }
+                            "end": {"line": 6, "character": 25},
+                        },
+                    },
                 },
                 {
                     "name": "greet",
@@ -229,11 +235,11 @@ def sample_symbols() -> list:
                         "uri": "file:///test.py",
                         "range": {
                             "start": {"line": 8, "character": 4},
-                            "end": {"line": 10, "character": 35}
-                        }
-                    }
-                }
-            ]
+                            "end": {"line": 10, "character": 35},
+                        },
+                    },
+                },
+            ],
         },
         {
             "name": "standalone_function",
@@ -242,10 +248,10 @@ def sample_symbols() -> list:
                 "uri": "file:///test.py",
                 "range": {
                     "start": {"line": 17, "character": 0},
-                    "end": {"line": 19, "character": 25}
-                }
-            }
-        }
+                    "end": {"line": 19, "character": 25},
+                },
+            },
+        },
     ]
 
 
@@ -256,21 +262,21 @@ def sample_diagnostics() -> list:
         {
             "range": {
                 "start": {"line": 10, "character": 15},
-                "end": {"line": 10, "character": 25}
+                "end": {"line": 10, "character": 25},
             },
             "severity": 1,  # Error
             "message": "Undefined variable 'undefined_var'",
-            "source": "Pyright"
+            "source": "Pyright",
         },
         {
             "range": {
                 "start": {"line": 20, "character": 0},
-                "end": {"line": 20, "character": 10}
+                "end": {"line": 20, "character": 10},
             },
             "severity": 2,  # Warning
             "message": "Unused import 'os'",
-            "source": "Pyright"
-        }
+            "source": "Pyright",
+        },
     ]
 
 
@@ -284,9 +290,11 @@ pytestmark = [
 
 # ==================== Helper Functions ====================
 
+
 def skip_if_no_pyright():
     """Skip test if pyright is not available."""
     import shutil
+
     if not shutil.which("pyright-langserver"):
         pytest.skip("pyright-langserver not found")
 

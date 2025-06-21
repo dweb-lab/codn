@@ -26,6 +26,19 @@ help:
 	@echo "  lint           - Run linting checks"
 	@echo "  format         - Format code"
 	@echo "  check          - Run all checks (lint + test)"
+	@echo "  quality        - Run full quality pipeline"
+	@echo ""
+	@echo "🪝 Git Hooks:"
+	@echo "  setup-hooks    - Setup git hooks for code quality"
+	@echo "  install-hooks  - Install pre-commit framework (with proxy)"
+	@echo "  install-hooks-direct - Install pre-commit framework (direct)"
+	@echo "  test-hooks     - Test git hooks manually"
+	@echo "  update-hooks   - Update pre-commit hooks"
+	@echo ""
+	@echo "🌐 Network & Proxy:"
+	@echo "  setup-proxy    - Setup proxy for faster GitHub access"
+	@echo "  test-network   - Test GitHub connectivity"
+	@echo "  proxy-help     - Show proxy configuration help"
 	@echo ""
 	@echo "🚀 Quick Commands:"
 	@echo "  run            - Run codn command (uv run codn)"
@@ -72,20 +85,38 @@ test-network:
 test-no-network:
 	uv run pytest -m "not network" -v
 
+# Network connectivity test
+github-connectivity-test:
+	@echo "🔍 Testing GitHub connectivity..."
+	@if curl -s --connect-timeout 5 https://api.github.com/zen >/dev/null 2>&1; then \
+		echo "✅ Direct GitHub access works"; \
+	else \
+		echo "❌ GitHub access failed"; \
+		echo "💡 Try: make setup-proxy"; \
+	fi
+
 # Development commands
+# Code Quality
 lint:
-	@echo "Running ruff..."
-	uv run ruff check .
-	@echo "Running mypy..."
-	uv run mypy codn
-	@echo "Linting complete!"
+	@echo "Running ruff linting..."
+	@command -v uv >/dev/null 2>&1 && uv run ruff check . || ruff check .
+	@echo "Running mypy type checking..."
+	@command -v uv >/dev/null 2>&1 && uv run mypy codn --ignore-missing-imports || mypy codn --ignore-missing-imports
+	@echo "✅ Linting complete!"
 
 format:
-	@echo "Formatting with black..."
-	uv run black .
-	@echo "Sorting imports with ruff..."
-	uv run ruff check --fix --select I .
-	@echo "Formatting complete!"
+	@echo "Formatting code with ruff..."
+	@command -v uv >/dev/null 2>&1 && uv run ruff format . || ruff format .
+	@echo "Auto-fixing linting issues..."
+	@command -v uv >/dev/null 2>&1 && uv run ruff check . --fix || ruff check . --fix
+	@echo "✅ Formatting complete!"
+
+format-check:
+	@echo "Checking code formatting..."
+	@command -v uv >/dev/null 2>&1 && uv run ruff format --check . || ruff format --check .
+
+quality: format lint test-fast
+	@echo "🎉 Full quality pipeline passed!"
 
 check: lint test
 
@@ -93,6 +124,68 @@ check: lint test
 setup-help:
 	@echo "🔍 Checking your environment..."
 	@python3 install.py
+
+# Git hooks setup
+setup-hooks:
+	@echo "🪝 Setting up git hooks for code quality..."
+	@python3 scripts/setup-hooks.py
+
+install-hooks:
+	@echo "📦 Installing pre-commit framework..."
+	@echo "🌐 Using proxy for faster GitHub access (if needed)..."
+	@export https_proxy=http://127.0.0.1:7890 http_proxy=http://127.0.0.1:7890 all_proxy=socks5://127.0.0.1:7890; \
+	 command -v uv >/dev/null 2>&1 && uv tool install pre-commit || pip install pre-commit
+	@export https_proxy=http://127.0.0.1:7890 http_proxy=http://127.0.0.1:7890 all_proxy=socks5://127.0.0.1:7890; \
+	 pre-commit install
+	@export https_proxy=http://127.0.0.1:7890 http_proxy=http://127.0.0.1:7890 all_proxy=socks5://127.0.0.1:7890; \
+	 pre-commit install --hook-type commit-msg
+	@echo "✅ Pre-commit hooks installed!"
+
+install-hooks-direct:
+	@echo "📦 Installing pre-commit framework (direct connection)..."
+	@command -v uv >/dev/null 2>&1 && uv tool install pre-commit || pip install pre-commit
+	@pre-commit install
+	@pre-commit install --hook-type commit-msg
+	@echo "✅ Pre-commit hooks installed!"
+
+test-hooks:
+	@echo "🧪 Testing git hooks manually..."
+	@export https_proxy=http://127.0.0.1:7890 http_proxy=http://127.0.0.1:7890 all_proxy=socks5://127.0.0.1:7890; \
+	 command -v pre-commit >/dev/null 2>&1 && pre-commit run --all-files || echo "Pre-commit not installed. Use 'make install-hooks' first."
+
+update-hooks:
+	@echo "🔄 Updating pre-commit hooks..."
+	@export https_proxy=http://127.0.0.1:7890 http_proxy=http://127.0.0.1:7890 all_proxy=socks5://127.0.0.1:7890; \
+	 pre-commit autoupdate
+
+# Network and proxy setup
+setup-proxy:
+	@echo "🌐 Setting up proxy for faster GitHub access..."
+	@bash scripts/setup-proxy.sh
+
+test-network: github-connectivity-test
+
+proxy-help:
+	@echo "🌐 Proxy Configuration Help"
+	@echo "=========================="
+	@echo ""
+	@echo "For users in China or with slow GitHub access:"
+	@echo ""
+	@echo "🔧 Quick setup:"
+	@echo "  export https_proxy=http://127.0.0.1:7890"
+	@echo "  export http_proxy=http://127.0.0.1:7890"
+	@echo "  export all_proxy=socks5://127.0.0.1:7890"
+	@echo ""
+	@echo "🛠️  Automated setup:"
+	@echo "  make setup-proxy"
+	@echo ""
+	@echo "📦 With proxy commands:"
+	@echo "  make install-hooks     (uses proxy automatically)"
+	@echo "  make test-hooks        (uses proxy automatically)"
+	@echo "  make update-hooks      (uses proxy automatically)"
+	@echo ""
+	@echo "🚫 Direct commands (without proxy):"
+	@echo "  make install-hooks-direct"
 
 install:
 	@echo "📦 Installing with uv (recommended)..."
@@ -197,6 +290,10 @@ all: format lint test
 quick: format lint test-fast
 	@echo "⚡ Quick checks passed!"
 
+# Pre-commit simulation
+pre-commit-check: format-check lint test-fast
+	@echo "🪝 Pre-commit checks simulation passed!"
+
 # Environment info
 env-info:
 	@echo "🔍 Environment Information"
@@ -204,8 +301,11 @@ env-info:
 	@echo "Python: $(shell python3 --version)"
 	@echo "uv: $(shell command -v uv >/dev/null 2>&1 && uv --version || echo 'Not installed')"
 	@echo "pip: $(shell command -v pip >/dev/null 2>&1 && pip --version || echo 'Not installed')"
+	@echo "ruff: $(shell command -v ruff >/dev/null 2>&1 && ruff --version || echo 'Not installed')"
+	@echo "pre-commit: $(shell command -v pre-commit >/dev/null 2>&1 && pre-commit --version || echo 'Not installed')"
 	@echo "Virtual env: $(shell python3 -c 'import sys; print("Yes" if hasattr(sys, "real_prefix") or (hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix) else "No")')"
 	@echo "Project root: $(shell pwd)"
+	@echo "Git hooks: $(shell [ -f .git/hooks/pre-commit ] && echo 'Installed' || echo 'Not installed')"
 
 # Docker commands (if you use Docker)
 docker-test:

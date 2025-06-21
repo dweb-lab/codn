@@ -3,23 +3,28 @@ import json
 import re
 import signal
 import sys
-from pathlib import Path
-from itertools import count
-from watchfiles import awatch
-from loguru import logger
-from typing import Any, Optional, Dict, List, Set
 from dataclasses import dataclass
 from enum import Enum
+from itertools import count
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set
+
+from loguru import logger
+from watchfiles import awatch
+
 
 PYRIGHT_COMMAND = ["pyright-langserver", "--stdio"]
 DEFAULT_TIMEOUT = 30
 BUFFER_SIZE = 8192
 
+
 def path_to_file_uri(path_str: str) -> str:
     return Path(path_str).resolve().as_uri()
 
+
 class LSPError(Exception):
     pass
+
 
 class LSPClientState(Enum):
     STOPPED = "stopped"
@@ -27,11 +32,13 @@ class LSPClientState(Enum):
     RUNNING = "running"
     STOPPING = "stopping"
 
+
 @dataclass
 class LSPConfig:
     timeout: float = DEFAULT_TIMEOUT
     enable_file_watcher: bool = True
     log_level: str = "INFO"
+
 
 class PyrightLSPClient:
     def __init__(self, root_uri: str, config: Optional[LSPConfig] = None):
@@ -72,7 +79,7 @@ class PyrightLSPClient:
                 *PYRIGHT_COMMAND,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
             )
             task = asyncio.create_task(self._response_loop())
             self._tasks.add(task)
@@ -88,21 +95,25 @@ class PyrightLSPClient:
             "rootUri": self.root_uri,
             "capabilities": {
                 "textDocument": {
-                    "synchronization": {"dynamicRegistration": True, "willSave": True, "didSave": True},
+                    "synchronization": {
+                        "dynamicRegistration": True,
+                        "willSave": True,
+                        "didSave": True,
+                    },
                     "completion": {"dynamicRegistration": True},
                     "hover": {"dynamicRegistration": True},
                     "definition": {"dynamicRegistration": True},
                     "references": {"dynamicRegistration": True},
-                    "documentSymbol": {"dynamicRegistration": True}
+                    "documentSymbol": {"dynamicRegistration": True},
                 },
                 "workspace": {
                     "applyEdit": True,
                     "workspaceEdit": {"documentChanges": True},
                     "didChangeConfiguration": {"dynamicRegistration": True},
-                    "didChangeWatchedFiles": {"dynamicRegistration": True}
-                }
+                    "didChangeWatchedFiles": {"dynamicRegistration": True},
+                },
             },
-            "workspaceFolders": [{"uri": self.root_uri, "name": "workspace"}]
+            "workspaceFolders": [{"uri": self.root_uri, "name": "workspace"}],
         }
         await self._request("initialize", init_params)
         await self._notify("initialized", {})
@@ -111,8 +122,8 @@ class PyrightLSPClient:
         if not self.proc or not self.proc.stdin:
             raise LSPError("LSP process not available")
         try:
-            data = json.dumps(msg).encode('utf-8')
-            header = f"Content-Length: {len(data)}\r\n\r\n".encode('utf-8')
+            data = json.dumps(msg).encode("utf-8")
+            header = f"Content-Length: {len(data)}\r\n\r\n".encode()
             self.proc.stdin.write(header + data)
             await self.proc.stdin.drain()
         except Exception as e:
@@ -129,7 +140,9 @@ class PyrightLSPClient:
             self._pending[msg_id] = future
 
         try:
-            await self._send({"jsonrpc": "2.0", "id": msg_id, "method": method, "params": params})
+            await self._send(
+                {"jsonrpc": "2.0", "id": msg_id, "method": method, "params": params}
+            )
             result = await asyncio.wait_for(future, timeout=self.config.timeout)
 
             if isinstance(result, dict) and "error" in result:
@@ -155,9 +168,12 @@ class PyrightLSPClient:
 
     async def _response_loop(self) -> None:
         try:
-            while (self.proc and self.proc.stdout and
-                   not self._shutdown_event.is_set() and
-                   self.proc.returncode is None):
+            while (
+                self.proc
+                and self.proc.stdout
+                and not self._shutdown_event.is_set()
+                and self.proc.returncode is None
+            ):
                 try:
                     headers = await self._read_headers()
                     if not headers:
@@ -186,7 +202,7 @@ class PyrightLSPClient:
             if not line or line == b"\r\n":
                 break
             try:
-                decoded = line.decode('utf-8', errors='replace').strip()
+                decoded = line.decode("utf-8", errors="replace").strip()
                 if ":" in decoded:
                     key, value = decoded.split(":", 1)
                     headers[key.strip()] = value.strip()
@@ -217,7 +233,7 @@ class PyrightLSPClient:
             body = await self.proc.stdout.read(length)
             if not body:
                 return None
-            return json.loads(body.decode('utf-8', errors='replace'))
+            return json.loads(body.decode("utf-8", errors="replace"))
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON message: {e}")
             return None
@@ -261,7 +277,9 @@ class PyrightLSPClient:
     async def _handle_log_message(self, params: Dict[str, Any]) -> None:
         message = params.get("message", "")
         msg_type = params.get("type", 1)
-        log_func = [logger.error, logger.warning, logger.info, logger.debug][min(msg_type - 1, 3)]
+        log_func = [logger.error, logger.warning, logger.info, logger.debug][
+            min(msg_type - 1, 3)
+        ]
         log_func(f"LSP: {message}")
 
     async def _handle_show_message(self, params: Dict[str, Any]) -> None:
@@ -269,38 +287,64 @@ class PyrightLSPClient:
         msg_type = params.get("type", 1)
         logger.info(f"LSP Message (type {msg_type}): {message}")
 
-    async def _manage_file_state(self, uri: str, action: str, content: str = "", language_id: str = "python") -> None:
+    async def _manage_file_state(
+        self, uri: str, action: str, content: str = "", language_id: str = "python"
+    ) -> None:
         """Unified file state management"""
         async with self._lock:
             if action == "open":
                 if uri in self.open_files:
                     self.file_versions[uri] = self.file_versions.get(uri, 0) + 1
-                    await self._notify("textDocument/didChange", {
-                        "textDocument": {"uri": uri, "version": self.file_versions[uri]},
-                        "contentChanges": [{"text": content}]
-                    })
+                    await self._notify(
+                        "textDocument/didChange",
+                        {
+                            "textDocument": {
+                                "uri": uri,
+                                "version": self.file_versions[uri],
+                            },
+                            "contentChanges": [{"text": content}],
+                        },
+                    )
                     return
                 self.open_files.add(uri)
                 self.file_versions[uri] = 1
-                await self._notify("textDocument/didOpen", {
-                    "textDocument": {"uri": uri, "languageId": language_id, "version": 1, "text": content}
-                })
+                await self._notify(
+                    "textDocument/didOpen",
+                    {
+                        "textDocument": {
+                            "uri": uri,
+                            "languageId": language_id,
+                            "version": 1,
+                            "text": content,
+                        },
+                    },
+                )
             elif action == "change":
                 if uri not in self.open_files:
                     await self._manage_file_state(uri, "open", content)
                     return
                 self.file_versions[uri] = self.file_versions.get(uri, 0) + 1
-                await self._notify("textDocument/didChange", {
-                    "textDocument": {"uri": uri, "version": self.file_versions[uri]},
-                    "contentChanges": [{"text": content}]
-                })
+                await self._notify(
+                    "textDocument/didChange",
+                    {
+                        "textDocument": {
+                            "uri": uri,
+                            "version": self.file_versions[uri],
+                        },
+                        "contentChanges": [{"text": content}],
+                    },
+                )
             elif action == "close":
                 if uri in self.open_files:
                     self.open_files.remove(uri)
                     self.file_versions.pop(uri, None)
-                    await self._notify("textDocument/didClose", {"textDocument": {"uri": uri}})
+                    await self._notify(
+                        "textDocument/didClose", {"textDocument": {"uri": uri}}
+                    )
 
-    async def send_did_open(self, uri: str, content: str, language_id: str = "python") -> None:
+    async def send_did_open(
+        self, uri: str, content: str, language_id: str = "python"
+    ) -> None:
         if not uri or not isinstance(content, str):
             raise ValueError("Invalid parameters for didOpen")
         await self._manage_file_state(uri, "open", content, language_id)
@@ -318,24 +362,32 @@ class PyrightLSPClient:
     async def send_references(self, uri: str, line: int, character: int) -> Any:
         if line < 0 or character < 0:
             raise ValueError("Line and character must be non-negative")
-        return await self._request("textDocument/references", {
-            "textDocument": {"uri": uri},
-            "position": {"line": line, "character": character},
-            "context": {"includeDeclaration": False}
-        })
+        return await self._request(
+            "textDocument/references",
+            {
+                "textDocument": {"uri": uri},
+                "position": {"line": line, "character": character},
+                "context": {"includeDeclaration": False},
+            },
+        )
 
     async def send_definition(self, uri: str, line: int, character: int) -> Any:
         if line < 0 or character < 0:
             raise ValueError("Line and character must be non-negative")
-        return await self._request("textDocument/definition", {
-            "textDocument": {"uri": uri},
-            "position": {"line": line, "character": character}
-        })
+        return await self._request(
+            "textDocument/definition",
+            {
+                "textDocument": {"uri": uri},
+                "position": {"line": line, "character": character},
+            },
+        )
 
     async def send_document_symbol(self, uri: str) -> Any:
         if not uri:
             raise ValueError("URI is required for documentSymbol")
-        return await self._request("textDocument/documentSymbol", {"textDocument": {"uri": uri}})
+        return await self._request(
+            "textDocument/documentSymbol", {"textDocument": {"uri": uri}}
+        )
 
     async def shutdown(self) -> None:
         if self._state in (LSPClientState.STOPPING, LSPClientState.STOPPED):
@@ -378,7 +430,9 @@ class PyrightLSPClient:
                 task.cancel()
         if self._tasks:
             try:
-                await asyncio.wait_for(asyncio.gather(*self._tasks, return_exceptions=True), timeout=5.0)
+                await asyncio.wait_for(
+                    asyncio.gather(*self._tasks, return_exceptions=True), timeout=5.0
+                )
             except asyncio.TimeoutError:
                 logger.warning("Some tasks did not complete within timeout")
             finally:
@@ -405,9 +459,10 @@ class PyrightLSPClient:
         async with self._lock:
             self._pending.clear()
 
+
 def extract_symbol_code(sym: Dict[str, Any], content: str, strip: bool = False) -> str:
     try:
-        rng = sym.get('location', {}).get('range', {})
+        rng = sym.get("location", {}).get("range", {})
         if not rng:
             return ""
 
@@ -424,7 +479,7 @@ def extract_symbol_code(sym: Dict[str, Any], content: str, strip: bool = False) 
             line = lines[start_line]
             return line[start_char:end_char] if strip else line
 
-        code_lines = lines[start_line:end_line + 1]
+        code_lines = lines[start_line : end_line + 1]
         if not code_lines:
             return ""
 
@@ -438,7 +493,10 @@ def extract_symbol_code(sym: Dict[str, Any], content: str, strip: bool = False) 
         logger.debug(f"Error extracting symbol code: {e}")
         return ""
 
-def extract_inheritance_relations(content: str, symbols: List[Dict[str, Any]]) -> Dict[str, str]:
+
+def extract_inheritance_relations(
+    content: str, symbols: List[Dict[str, Any]]
+) -> Dict[str, str]:
     try:
         lines = content.splitlines()
         relations = {}
@@ -451,7 +509,12 @@ def extract_inheritance_relations(content: str, symbols: List[Dict[str, Any]]) -
             if not name:
                 continue
 
-            line_num = symbol.get("location", {}).get("range", {}).get("start", {}).get("line", 0)
+            line_num = (
+                symbol.get("location", {})
+                .get("range", {})
+                .get("start", {})
+                .get("line", 0)
+            )
             if not (0 <= line_num < len(lines)):
                 continue
 
@@ -471,18 +534,21 @@ def extract_inheritance_relations(content: str, symbols: List[Dict[str, Any]]) -
         logger.debug(f"Error extracting inheritance relations: {e}")
         return {}
 
-def find_enclosing_function(symbols: List[Dict[str, Any]], line: int, character: int) -> Optional[str]:
+
+def find_enclosing_function(
+    symbols: List[Dict[str, Any]], line: int, character: int
+) -> Optional[str]:
     def _search_symbols(syms: List[Dict[str, Any]]) -> Optional[str]:
         result = None
         for symbol in syms:
-            if symbol.get('kind') == 12:  # Function
-                rng = symbol.get('location', {}).get('range', {})
-                start_line = rng.get('start', {}).get('line', -1)
-                end_line = rng.get('end', {}).get('line', -1)
+            if symbol.get("kind") == 12:  # Function
+                rng = symbol.get("location", {}).get("range", {})
+                start_line = rng.get("start", {}).get("line", -1)
+                end_line = rng.get("end", {}).get("line", -1)
                 if start_line <= line <= end_line:
-                    result = symbol.get('name', '')
+                    result = symbol.get("name", "")
 
-            children = symbol.get('children', [])
+            children = symbol.get("children", [])
             if children:
                 nested_result = _search_symbols(children)
                 if nested_result:
@@ -495,14 +561,18 @@ def find_enclosing_function(symbols: List[Dict[str, Any]], line: int, character:
         logger.debug(f"Error finding enclosing function: {e}")
         return None
 
+
 def _should_process_file(path_obj: Path) -> bool:
     path_str = str(path_obj)
-    if not path_str.endswith(('.py', '.pyi')):
+    if not path_str.endswith((".py", ".pyi")):
         return False
-    skip_dirs = {'.git', '__pycache__', '.pytest_cache', 'node_modules'}
+    skip_dirs = {".git", "__pycache__", ".pytest_cache", "node_modules"}
     return not any(part in path_obj.parts for part in skip_dirs)
 
-async def _handle_file_change(client: PyrightLSPClient, change_type, file_path: Path) -> None:
+
+async def _handle_file_change(
+    client: PyrightLSPClient, change_type, file_path: Path
+) -> None:
     try:
         uri = path_to_file_uri(str(file_path))
         change_name = change_type.name
@@ -521,6 +591,7 @@ async def _handle_file_change(client: PyrightLSPClient, change_type, file_path: 
     except Exception as e:
         if not client._shutdown_event.is_set():
             logger.error(f"Error handling file change {file_path}: {e}")
+
 
 async def watch_and_sync(client: PyrightLSPClient, root_path: Path) -> None:
     if not root_path.exists():
@@ -542,8 +613,9 @@ async def watch_and_sync(client: PyrightLSPClient, root_path: Path) -> None:
         if not client._shutdown_event.is_set():
             logger.error(f"File watcher error: {e}")
 
+
 async def main() -> None:
-    root_path = Path(".").resolve()
+    root_path = Path().resolve()
     logger.remove()
     logger.add(sys.stderr, level="INFO", format="{time} | {level} | {message}")
 

@@ -5,9 +5,11 @@ This module contains comprehensive tests for Git repository validation functiona
 including various repository states, error conditions, and edge cases.
 """
 
-import pytest
 import subprocess
 from unittest.mock import Mock, patch
+
+import pytest
+
 from codn.utils.git_utils import is_valid_git_repo
 
 
@@ -25,7 +27,7 @@ class TestIsValidGitRepo:
             ["git", "init"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Configure Git user (required for commits)
@@ -33,13 +35,13 @@ class TestIsValidGitRepo:
             ["git", "config", "user.name", "Test User"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         subprocess.run(
             ["git", "config", "user.email", "test@example.com"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Create a file and commit
@@ -50,13 +52,13 @@ class TestIsValidGitRepo:
             ["git", "add", "test.txt"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         subprocess.run(
             ["git", "commit", "-m", "Initial commit"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Test with string path
@@ -75,7 +77,7 @@ class TestIsValidGitRepo:
             ["git", "init"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # This should fail because there's no HEAD commit
@@ -117,7 +119,7 @@ class TestIsValidGitRepo:
             ["git", "init"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Configure Git user and make a commit
@@ -125,13 +127,13 @@ class TestIsValidGitRepo:
             ["git", "config", "user.name", "Test User"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         subprocess.run(
             ["git", "config", "user.email", "test@example.com"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         test_file = repo_dir / "test.txt"
@@ -141,43 +143,45 @@ class TestIsValidGitRepo:
             ["git", "add", "test.txt"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         subprocess.run(
             ["git", "commit", "-m", "Test commit"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Change to parent directory and test relative path
         monkeypatch.chdir(tmp_path)
         assert is_valid_git_repo("relative_repo") is True
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_git_command_not_found(self, mock_run):
         """Test when Git command is not available."""
         mock_run.side_effect = FileNotFoundError("Git command not found")
 
-        with patch('sys.stdout'):  # Suppress print output
+        with patch("sys.stdout"):  # Suppress print output
             result = is_valid_git_repo("/some/path")
 
         assert result is False
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_git_rev_parse_fails(self, mock_run):
         """Test when git rev-parse HEAD fails."""
         # First call (rev-parse HEAD) fails
         mock_run.side_effect = subprocess.CalledProcessError(
-            1, ['git', 'rev-parse', 'HEAD'], stderr="fatal: bad revision 'HEAD'"
+            1,
+            ["git", "rev-parse", "HEAD"],
+            stderr="fatal: bad revision 'HEAD'",
         )
 
-        with patch('sys.stdout'):  # Suppress print output
+        with patch("sys.stdout"):  # Suppress print output
             result = is_valid_git_repo("/some/path")
 
         assert result is False
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_git_fsck_fails(self, mock_run):
         """Test when git fsck fails."""
         # First call (rev-parse HEAD) succeeds
@@ -186,55 +190,55 @@ class TestIsValidGitRepo:
         # Second call (fsck) fails
         mock_run.side_effect = [
             Mock(returncode=0, stdout="abc123", stderr=""),
-            subprocess.CalledProcessError(1, ['git', 'fsck'], stderr="fsck failed")
+            subprocess.CalledProcessError(1, ["git", "fsck"], stderr="fsck failed"),
         ]
 
-        with patch('sys.stdout'):  # Suppress print output
+        with patch("sys.stdout"):  # Suppress print output
             result = is_valid_git_repo("/some/path")
 
         assert result is False
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_git_fsck_detects_corruption(self, mock_run):
         """Test when git fsck detects repository corruption."""
         # First call (rev-parse HEAD) succeeds
         # Second call (fsck) succeeds but reports corruption
         mock_run.side_effect = [
             Mock(returncode=0, stdout="abc123", stderr=""),
-            Mock(returncode=0, stdout="missing blob 123abc", stderr="")
+            Mock(returncode=0, stdout="missing blob 123abc", stderr=""),
         ]
 
-        with patch('sys.stdout'):  # Suppress print output
+        with patch("sys.stdout"):  # Suppress print output
             result = is_valid_git_repo("/some/path")
 
         assert result is False
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_git_fsck_reports_error(self, mock_run):
         """Test when git fsck reports errors in output."""
         # First call (rev-parse HEAD) succeeds
         # Second call (fsck) succeeds but reports errors
         mock_run.side_effect = [
             Mock(returncode=0, stdout="abc123", stderr=""),
-            Mock(returncode=0, stdout="error in commit abc123", stderr="")
+            Mock(returncode=0, stdout="error in commit abc123", stderr=""),
         ]
 
-        with patch('sys.stdout'):  # Suppress print output
+        with patch("sys.stdout"):  # Suppress print output
             result = is_valid_git_repo("/some/path")
 
         assert result is False
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_git_fsck_clean_output(self, mock_run):
         """Test when git fsck produces clean output."""
         # First call (rev-parse HEAD) succeeds
         # Second call (fsck) succeeds with clean output
         mock_run.side_effect = [
             Mock(returncode=0, stdout="abc123", stderr=""),
-            Mock(returncode=0, stdout="Checking connectivity... done.", stderr="")
+            Mock(returncode=0, stdout="Checking connectivity... done.", stderr=""),
         ]
 
-        with patch('pathlib.Path.exists', return_value=True):
+        with patch("pathlib.Path.exists", return_value=True):
             result = is_valid_git_repo("/some/path")
 
         assert result is True
@@ -263,7 +267,7 @@ class TestIsValidGitRepo:
             ["git", "init"],
             cwd=main_repo,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Configure Git user
@@ -271,13 +275,13 @@ class TestIsValidGitRepo:
             ["git", "config", "user.name", "Test User"],
             cwd=main_repo,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         subprocess.run(
             ["git", "config", "user.email", "test@example.com"],
             cwd=main_repo,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Create initial commit
@@ -288,13 +292,13 @@ class TestIsValidGitRepo:
             ["git", "add", "test.txt"],
             cwd=main_repo,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         subprocess.run(
             ["git", "commit", "-m", "Initial commit"],
             cwd=main_repo,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Create a branch
@@ -302,7 +306,7 @@ class TestIsValidGitRepo:
             ["git", "checkout", "-b", "feature"],
             cwd=main_repo,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Go back to main branch
@@ -310,13 +314,13 @@ class TestIsValidGitRepo:
             ["git", "checkout", "main"],
             cwd=main_repo,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Main repository should be valid
         assert is_valid_git_repo(main_repo) is True
 
-    @patch('pathlib.Path.exists')
+    @patch("pathlib.Path.exists")
     def test_git_dir_does_not_exist(self, mock_exists):
         """Test when .git directory does not exist."""
         mock_exists.return_value = False
@@ -342,19 +346,22 @@ class TestIsValidGitRepo:
             ["git", "init", "--bare"],
             cwd=bare_repo,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Bare repositories don't have HEAD initially
         assert is_valid_git_repo(bare_repo) is False
 
-    @pytest.mark.parametrize("path_input", [
-        ".",
-        "./",
-        "../",
-        "~/",
-        "/tmp",
-    ])
+    @pytest.mark.parametrize(
+        "path_input",
+        [
+            ".",
+            "./",
+            "../",
+            "~/",
+            "/tmp",
+        ],
+    )
     def test_various_path_formats(self, path_input):
         """Test with various path formats."""
         # Most of these should be False unless they're actual Git repos
@@ -371,7 +378,7 @@ class TestIsValidGitRepo:
             ["git", "init"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Configure Git user and make commit
@@ -379,13 +386,13 @@ class TestIsValidGitRepo:
             ["git", "config", "user.name", "Test User"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         subprocess.run(
             ["git", "config", "user.email", "test@example.com"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         test_file = repo_dir / "test.txt"
@@ -395,13 +402,13 @@ class TestIsValidGitRepo:
             ["git", "add", "test.txt"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         subprocess.run(
             ["git", "commit", "-m", "Test commit"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Multiple calls should all succeed
@@ -418,7 +425,7 @@ class TestIsValidGitRepo:
             ["git", "init"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Configure Git user
@@ -426,13 +433,13 @@ class TestIsValidGitRepo:
             ["git", "config", "user.name", "Test User"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         subprocess.run(
             ["git", "config", "user.email", "test@example.com"],
             cwd=repo_dir,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Create multiple commits
@@ -444,13 +451,13 @@ class TestIsValidGitRepo:
                 ["git", "add", f"file_{i}.txt"],
                 cwd=repo_dir,
                 check=True,
-                capture_output=True
+                capture_output=True,
             )
             subprocess.run(
                 ["git", "commit", "-m", f"Commit {i}"],
                 cwd=repo_dir,
                 check=True,
-                capture_output=True
+                capture_output=True,
             )
 
         assert is_valid_git_repo(repo_dir) is True
@@ -465,7 +472,7 @@ class TestIsValidGitRepo:
             ["git", "init"],
             cwd=unicode_repo,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Configure Git user and make commit
@@ -473,13 +480,13 @@ class TestIsValidGitRepo:
             ["git", "config", "user.name", "Test User"],
             cwd=unicode_repo,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         subprocess.run(
             ["git", "config", "user.email", "test@example.com"],
             cwd=unicode_repo,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         test_file = unicode_repo / "test.txt"
@@ -489,13 +496,13 @@ class TestIsValidGitRepo:
             ["git", "add", "test.txt"],
             cwd=unicode_repo,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         subprocess.run(
             ["git", "commit", "-m", "Test commit"],
             cwd=unicode_repo,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         assert is_valid_git_repo(unicode_repo) is True
@@ -504,25 +511,26 @@ class TestIsValidGitRepo:
 class TestGitUtilsEdgeCases:
     """Test edge cases and error conditions."""
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_timeout_scenario(self, mock_run):
         """Test timeout scenario (simulated)."""
         # Simulate a hanging Git command
         mock_run.side_effect = subprocess.TimeoutExpired(
-            ['git', 'rev-parse', 'HEAD'], 30
+            ["git", "rev-parse", "HEAD"],
+            30,
         )
 
-        with patch('sys.stdout'):
+        with patch("sys.stdout"):
             result = is_valid_git_repo("/some/path")
 
         assert result is False
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_permission_denied(self, mock_run):
         """Test permission denied scenario."""
         mock_run.side_effect = PermissionError("Permission denied")
 
-        with patch('sys.stdout'):
+        with patch("sys.stdout"):
             result = is_valid_git_repo("/some/path")
 
         assert result is False
@@ -537,7 +545,7 @@ class TestGitUtilsEdgeCases:
             ["git", "init"],
             cwd=real_repo,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Configure Git user and make commit
@@ -545,13 +553,13 @@ class TestGitUtilsEdgeCases:
             ["git", "config", "user.name", "Test User"],
             cwd=real_repo,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         subprocess.run(
             ["git", "config", "user.email", "test@example.com"],
             cwd=real_repo,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         test_file = real_repo / "test.txt"
@@ -561,13 +569,13 @@ class TestGitUtilsEdgeCases:
             ["git", "add", "test.txt"],
             cwd=real_repo,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         subprocess.run(
             ["git", "commit", "-m", "Test commit"],
             cwd=real_repo,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Create symlink

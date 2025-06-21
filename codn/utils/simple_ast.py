@@ -1,5 +1,5 @@
 import ast
-from typing import Optional, List, Tuple, Union, Dict
+from typing import Dict, List, Optional, Tuple, Union
 
 
 def find_enclosing_function(content: str, line: int, character: int) -> Optional[str]:
@@ -22,6 +22,7 @@ def find_enclosing_function(content: str, line: int, character: int) -> Optional
     # Try to add end_lineno information if asttokens is available
     try:
         import asttokens  # type: ignore
+
         asttokens.ASTTokens(content, tree=tree)
     except ImportError:
         pass
@@ -31,10 +32,12 @@ def find_enclosing_function(content: str, line: int, character: int) -> Optional
     class FunctionVisitor(ast.NodeVisitor):
         """Visitor to find functions containing the target line."""
 
-        def _check_function_node(self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef]) -> None:
+        def _check_function_node(
+            self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef]
+        ) -> None:
             """Check if a function node contains the target line."""
-            start_line = getattr(node, 'lineno', None)
-            end_line = getattr(node, 'end_lineno', None)
+            start_line = getattr(node, "lineno", None)
+            end_line = getattr(node, "end_lineno", None)
 
             if start_line is not None:
                 # Convert to 0-based indexing for comparison
@@ -53,19 +56,21 @@ def find_enclosing_function(content: str, line: int, character: int) -> Optional
 
             self.generic_visit(node)
 
-        def _estimate_function_end(self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef]) -> int:
+        def _estimate_function_end(
+            self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef]
+        ) -> int:
             """Estimate the end line of a function when end_lineno is not available."""
             if not node.body:
-                return getattr(node, 'lineno', 1) - 1
+                return getattr(node, "lineno", 1) - 1
 
             # Find the maximum line number among all statements in the function body
-            max_line = getattr(node, 'lineno', 1)
+            max_line = getattr(node, "lineno", 1)
             for stmt in node.body:
-                if hasattr(stmt, 'lineno') and stmt.lineno:
+                if hasattr(stmt, "lineno") and stmt.lineno:
                     max_line = max(max_line, stmt.lineno)
                 # Also check nested nodes within each statement
                 for child in ast.walk(stmt):
-                    if hasattr(child, 'lineno') and child.lineno:
+                    if hasattr(child, "lineno") and child.lineno:
                         max_line = max(max_line, child.lineno)
 
             return max_line - 1  # Convert to 0-based
@@ -124,7 +129,7 @@ def _extract_base_name(base: ast.expr) -> Optional[str]:
     """
     if isinstance(base, ast.Name):
         return base.id
-    elif isinstance(base, ast.Attribute):
+    if isinstance(base, ast.Attribute):
         # Handle cases like module.BaseClass
         value_name = _extract_base_name(base.value)
         if value_name:
@@ -167,7 +172,9 @@ def find_function_references(content: str, function_name: str) -> List[Tuple[int
     return references
 
 
-def extract_function_signatures(content: str) -> List[Dict[str, Union[str, int, List[str]]]]:
+def extract_function_signatures(
+    content: str,
+) -> List[Dict[str, Union[str, int, List[str]]]]:
     """
     Extract function signatures from Python source code.
 
@@ -185,7 +192,9 @@ def extract_function_signatures(content: str) -> List[Dict[str, Union[str, int, 
     functions = []
 
     class FunctionVisitor(ast.NodeVisitor):
-        def _extract_function_info(self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef]) -> None:
+        def _extract_function_info(
+            self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef]
+        ) -> None:
             args = []
             defaults = []
 
@@ -220,7 +229,7 @@ def extract_function_signatures(content: str) -> List[Dict[str, Union[str, int, 
                 "defaults": defaults,
                 "return_type": return_type,
                 "is_async": isinstance(node, ast.AsyncFunctionDef),
-                "docstring": ast.get_docstring(node)
+                "docstring": ast.get_docstring(node),
             }
 
             functions.append(function_info)
@@ -287,7 +296,9 @@ def find_unused_imports(content: str) -> List[Tuple[str, int]]:
     return unused_imports
 
 
-def extract_class_methods(content: str, class_name: Optional[str] = None) -> List[Dict[str, Union[str, int, List[str]]]]:
+def extract_class_methods(
+    content: str, class_name: Optional[str] = None
+) -> List[Dict[str, Union[str, int, List[str]]]]:
     """
     Extract methods from classes in Python source code.
 
@@ -327,7 +338,7 @@ def extract_class_methods(content: str, class_name: Optional[str] = None) -> Lis
                                 isinstance(d, ast.Name) and d.id == "property"
                                 for d in item.decorator_list
                             ),
-                            "docstring": ast.get_docstring(item)
+                            "docstring": ast.get_docstring(item),
                         }
                         methods.append(method_info)
             self.generic_visit(node)

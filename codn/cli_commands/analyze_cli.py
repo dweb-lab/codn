@@ -2,31 +2,32 @@
 CLI commands for code analysis features.
 """
 
-import typer
 from pathlib import Path
 from typing import Optional
-from rich.console import Console
-from rich.table import Table
-from rich.progress import Progress, TextColumn, BarColumn, TimeRemainingColumn
-from rich.panel import Panel
 
+import typer
 from rich.columns import Columns
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import BarColumn, Progress, TextColumn, TimeRemainingColumn
+from rich.table import Table
 
-from ..utils.simple_ast import (
-    find_function_references,
-    extract_function_signatures,
-    find_unused_imports,
-    extract_class_methods
-)
-from ..utils.os_utils import list_all_python_files_sync
 from ..utils.git_utils import is_valid_git_repo
+from ..utils.os_utils import list_all_python_files_sync
+from ..utils.simple_ast import (
+    extract_class_methods,
+    extract_function_signatures,
+    find_function_references,
+    find_unused_imports,
+)
+
 
 app = typer.Typer(help="Code analysis commands", invoke_without_command=True)
 console = Console()
 
 
 @app.callback()
-def analyze_main(ctx: typer.Context):
+def analyze_main(ctx: typer.Context) -> None:
     """
     📊 Code analysis and statistics
 
@@ -37,7 +38,7 @@ def analyze_main(ctx: typer.Context):
         show_analyze_welcome()
 
 
-def show_analyze_welcome():
+def show_analyze_welcome() -> None:
     """Display simple welcome message for analyze command."""
 
     console.print()
@@ -51,16 +52,25 @@ def show_analyze_welcome():
     console.print("[cyan]functions[/cyan]        📝 List all functions")
 
     console.print()
-    console.print("[bold yellow]💡 Tip:[/bold yellow] Use [green]codn[/green] (without analyze) for shorter commands!")
+    console.print(
+        "[bold yellow]💡 Tip:[/bold yellow] Use [green]codn[/green] "
+        "(without analyze) for shorter commands!"
+    )
     console.print("[dim]Examples: codn unused, codn refs <func>, codn funcs[/dim]")
 
 
 @app.command("project")
 def analyze_project(
-    path: Optional[Path] = typer.Argument(None, help="Path to analyze (default: current directory)"),
-    include_tests: bool = typer.Option(False, "--include-tests", help="Include test files in analysis"),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
-):
+    path: Optional[Path] = typer.Argument(
+        None, help="Path to analyze (default: current directory)"
+    ),
+    include_tests: bool = typer.Option(
+        False, "--include-tests", help="Include test files in analysis"
+    ),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Show detailed output"
+    ),
+) -> None:
     """Analyze project structure and provide statistics."""
     if path is None:
         path = Path.cwd()
@@ -102,7 +112,7 @@ def analyze_project(
 
         for file_path in python_files:
             try:
-                content = file_path.read_text(encoding='utf-8')
+                content = file_path.read_text(encoding="utf-8")
 
                 # Count lines
                 lines = len(content.splitlines())
@@ -125,14 +135,16 @@ def analyze_project(
                     stats["unused_imports"] += len(unused)
 
                 if verbose:
-                    file_details.append({
-                        "file": file_path,
-                        "lines": lines,
-                        "functions": len(functions),
-                        "classes": len(classes),
-                        "methods": len(methods),
-                        "unused_imports": len(unused)
-                    })
+                    file_details.append(
+                        {
+                            "file": file_path,
+                            "lines": lines,
+                            "functions": len(functions),
+                            "classes": len(classes),
+                            "methods": len(methods),
+                            "unused_imports": len(unused),
+                        }
+                    )
 
             except Exception as e:
                 console.print(f"[red]Error analyzing {file_path}: {e}[/red]")
@@ -141,52 +153,108 @@ def analyze_project(
 
     # Display results with enhanced formatting
     console.print()
-    console.print(Panel.fit(
-        "[bold blue]📊 Project Analysis Complete[/bold blue]",
-        style="blue"
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]📊 Project Analysis Complete[/bold blue]",
+            style="blue",
+        )
+    )
     console.print()
 
     # Calculate derived metrics
-    avg_lines_per_file = stats["total_lines"] / stats["total_files"] if stats["total_files"] > 0 else 0
-    avg_functions_per_file = stats["total_functions"] / stats["total_files"] if stats["total_files"] > 0 else 0
-    code_quality_score = max(0, 100 - (stats["unused_imports"] * 2) - (stats["files_with_issues"] * 5))
+    avg_lines_per_file = (
+        stats["total_lines"] / stats["total_files"] if stats["total_files"] > 0 else 0
+    )
+    avg_functions_per_file = (
+        stats["total_functions"] / stats["total_files"]
+        if stats["total_files"] > 0
+        else 0
+    )
+    code_quality_score = max(
+        0, 100 - (stats["unused_imports"] * 2) - (stats["files_with_issues"] * 5)
+    )
 
     # Create main statistics table with better formatting
-    stats_table = Table(title="📈 Project Overview", show_header=True, header_style="bold magenta")
+    stats_table = Table(
+        title="📈 Project Overview", show_header=True, header_style="bold magenta"
+    )
     stats_table.add_column("Metric", style="cyan", width=20)
     stats_table.add_column("Value", style="bright_white", justify="right", width=10)
     stats_table.add_column("Assessment", style="dim", width=20)
 
     # Add rows with assessments
-    stats_table.add_row("🐍 Python Files", str(stats["total_files"]), _get_file_count_assessment(stats["total_files"]))
-    stats_table.add_row("📝 Total Lines", f"{stats['total_lines']:,}", f"~{avg_lines_per_file:.0f} per file")
-    stats_table.add_row("⚡ Functions", str(stats["total_functions"]), f"~{avg_functions_per_file:.1f} per file")
-    stats_table.add_row("📦 Classes", str(stats["total_classes"]), _get_class_assessment(stats["total_classes"]))
-    stats_table.add_row("🔧 Methods", str(stats["total_methods"]), _get_method_ratio_assessment(stats["total_methods"], stats["total_classes"]))
+    stats_table.add_row(
+        "🐍 Python Files",
+        str(stats["total_files"]),
+        _get_file_count_assessment(stats["total_files"]),
+    )
+    stats_table.add_row(
+        "📝 Total Lines",
+        f"{stats['total_lines']:,}",
+        f"~{avg_lines_per_file:.0f} per file",
+    )
+    stats_table.add_row(
+        "⚡ Functions",
+        str(stats["total_functions"]),
+        f"~{avg_functions_per_file:.1f} per file",
+    )
+    stats_table.add_row(
+        "📦 Classes",
+        str(stats["total_classes"]),
+        _get_class_assessment(stats["total_classes"]),
+    )
+    stats_table.add_row(
+        "🔧 Methods",
+        str(stats["total_methods"]),
+        _get_method_ratio_assessment(stats["total_methods"], stats["total_classes"]),
+    )
 
     # Quality metrics with color coding
     issue_style = "red" if stats["files_with_issues"] > 0 else "green"
-    import_style = "red" if stats["unused_imports"] > 5 else "yellow" if stats["unused_imports"] > 0 else "green"
+    import_style = (
+        "red"
+        if stats["unused_imports"] > 5
+        else "yellow"
+        if stats["unused_imports"] > 0
+        else "green"
+    )
 
-    stats_table.add_row("⚠️  Files with Issues", f"[{issue_style}]{stats['files_with_issues']}[/{issue_style}]", _get_issue_assessment(stats["files_with_issues"], stats["total_files"]))
-    stats_table.add_row("🗂️  Unused Imports", f"[{import_style}]{stats['unused_imports']}[/{import_style}]", _get_import_assessment(stats["unused_imports"]))
+    stats_table.add_row(
+        "⚠️  Files with Issues",
+        f"[{issue_style}]{stats['files_with_issues']}[/{issue_style}]",
+        _get_issue_assessment(stats["files_with_issues"], stats["total_files"]),
+    )
+    stats_table.add_row(
+        "🗂️  Unused Imports",
+        f"[{import_style}]{stats['unused_imports']}[/{import_style}]",
+        _get_import_assessment(stats["unused_imports"]),
+    )
 
     # Repository status
     repo_status = "✅ Yes" if is_valid_git_repo(path) else "❌ No"
     repo_style = "green" if is_valid_git_repo(path) else "red"
-    stats_table.add_row("🔄 Git Repository", f"[{repo_style}]{repo_status}[/{repo_style}]", "Version controlled" if is_valid_git_repo(path) else "Consider using git")
+    stats_table.add_row(
+        "🔄 Git Repository",
+        f"[{repo_style}]{repo_status}[/{repo_style}]",
+        "Version controlled" if is_valid_git_repo(path) else "Consider using git",
+    )
 
     console.print(stats_table)
     console.print()
 
     # Code quality score panel
-    quality_color = "green" if code_quality_score >= 80 else "yellow" if code_quality_score >= 60 else "red"
+    quality_color = (
+        "green"
+        if code_quality_score >= 80
+        else "yellow"
+        if code_quality_score >= 60
+        else "red"
+    )
     quality_panel = Panel(
         f"[bold {quality_color}]{code_quality_score:.0f}/100[/bold {quality_color}] 📊",
         title="Code Quality Score",
         title_align="center",
-        style=quality_color
+        style=quality_color,
     )
 
     # Recommendations panel
@@ -195,7 +263,7 @@ def analyze_project(
         recommendations,
         title="💡 Recommendations",
         title_align="left",
-        style="blue"
+        style="blue",
     )
 
     # Display panels side by side
@@ -225,7 +293,7 @@ def analyze_project(
                 str(detail["functions"]),
                 str(detail["classes"]),
                 str(detail["methods"]),
-                str(detail["unused_imports"]) if detail["unused_imports"] > 0 else "-"
+                str(detail["unused_imports"]) if detail["unused_imports"] > 0 else "-",
             )
 
         console.print(detail_table)
@@ -233,9 +301,15 @@ def analyze_project(
 
 @app.command("find-refs")
 def find_references(
-    function_name: str = typer.Argument(..., help="Function name to find references for"),
-    path: Optional[Path] = typer.Argument(None, help="Path to search (default: current directory)"),
-    include_tests: bool = typer.Option(False, "--include-tests", help="Include test files in search"),
+    function_name: str = typer.Argument(
+        ..., help="Function name to find references for"
+    ),
+    path: Optional[Path] = typer.Argument(
+        None, help="Path to search (default: current directory)"
+    ),
+    include_tests: bool = typer.Option(
+        False, "--include-tests", help="Include test files in search"
+    ),
 ):
     """Find all references to a function in the project."""
     if path is None:
@@ -245,7 +319,9 @@ def find_references(
         console.print(f"[red]Error: Path {path} does not exist[/red]")
         raise typer.Exit(1)
 
-    console.print(f"[blue]Searching for references to '{function_name}' in: {path}[/blue]")
+    console.print(
+        f"[blue]Searching for references to '{function_name}' in: {path}[/blue]"
+    )
 
     # Get all Python files
     ignored_dirs = [] if include_tests else ["tests", "test"]
@@ -267,7 +343,7 @@ def find_references(
 
         for file_path in python_files:
             try:
-                content = file_path.read_text(encoding='utf-8')
+                content = file_path.read_text(encoding="utf-8")
                 references = find_function_references(content, function_name)
 
                 if references:
@@ -290,28 +366,38 @@ def find_references(
 
     console.print()
     if total_references > 0:
-        console.print(Panel.fit(
-            f"[green]✅ Found {total_references} references to '[bold]{function_name}[/bold]'[/green]",
-            style="green"
-        ))
+        console.print(
+            Panel.fit(
+                f"[green]✅ Found {total_references} references to '[bold]{function_name}[/bold]'[/green]",
+                style="green",
+            )
+        )
     else:
-        console.print(Panel.fit(
-            f"[yellow]ℹ️  No references found for '[bold]{function_name}[/bold]'[/yellow]\n"
-            f"The function might be:\n"
-            f"• Unused (consider removing)\n"
-            f"• Only used in excluded files (try --include-tests)\n"
-            f"• Called dynamically or through reflection",
-            title="Search Results",
-            style="yellow"
-        ))
+        console.print(
+            Panel.fit(
+                f"[yellow]ℹ️  No references found for '[bold]{function_name}[/bold]'[/yellow]\n"
+                f"The function might be:\n"
+                f"• Unused (consider removing)\n"
+                f"• Only used in excluded files (try --include-tests)\n"
+                f"• Called dynamically or through reflection",
+                title="Search Results",
+                style="yellow",
+            )
+        )
 
 
 @app.command("unused-imports")
 def find_unused_imports_cmd(
-    path: Optional[Path] = typer.Argument(None, help="Path to analyze (default: current directory)"),
-    include_tests: bool = typer.Option(False, "--include-tests", help="Include test files in analysis"),
-    fix: bool = typer.Option(False, "--fix", help="Automatically remove unused imports (experimental)"),
-):
+    path: Optional[Path] = typer.Argument(
+        None, help="Path to analyze (default: current directory)"
+    ),
+    include_tests: bool = typer.Option(
+        False, "--include-tests", help="Include test files in analysis"
+    ),
+    fix: bool = typer.Option(
+        False, "--fix", help="Automatically remove unused imports (experimental)"
+    ),
+) -> None:
     """Find unused imports in Python files."""
     if path is None:
         path = Path.cwd()
@@ -343,7 +429,7 @@ def find_unused_imports_cmd(
 
         for file_path in python_files:
             try:
-                content = file_path.read_text(encoding='utf-8')
+                content = file_path.read_text(encoding="utf-8")
                 unused = find_unused_imports(content)
 
                 if unused:
@@ -355,11 +441,15 @@ def find_unused_imports_cmd(
                     console.print(f"\n[yellow]{relative_path}[/yellow]")
 
                     for import_name, line_num in unused:
-                        console.print(f"  Line {line_num}: unused import '{import_name}'")
+                        console.print(
+                            f"  Line {line_num}: unused import '{import_name}'"
+                        )
                         total_unused += 1
 
                         if fix:
-                            console.print("    [dim]Note: Automatic fixing not implemented yet[/dim]")
+                            console.print(
+                                "    [dim]Note: Automatic fixing not implemented yet[/dim]"
+                            )
 
             except Exception as e:
                 console.print(f"[red]Error analyzing {file_path}: {e}[/red]")
@@ -368,15 +458,25 @@ def find_unused_imports_cmd(
 
     console.print()
     if total_unused == 0:
-        console.print(Panel.fit(
-            "[green]🎉 Excellent! No unused imports found[/green]\n"
-            "Your code is clean and well-maintained!",
-            title="Import Analysis Results",
-            style="green"
-        ))
+        console.print(
+            Panel.fit(
+                "[green]🎉 Excellent! No unused imports found[/green]\n"
+                "Your code is clean and well-maintained!",
+                title="Import Analysis Results",
+                style="green",
+            )
+        )
     else:
-        impact_level = "high" if total_unused > 10 else "medium" if total_unused > 5 else "low"
-        impact_color = "red" if impact_level == "high" else "yellow" if impact_level == "medium" else "blue"
+        impact_level = (
+            "high" if total_unused > 10 else "medium" if total_unused > 5 else "low"
+        )
+        impact_color = (
+            "red"
+            if impact_level == "high"
+            else "yellow"
+            if impact_level == "medium"
+            else "blue"
+        )
 
         result_text = f"Found [bold {impact_color}]{total_unused}[/bold {impact_color}] unused imports in [bold]{files_with_unused}[/bold] files\n\n"
         result_text += "💡 Benefits of removing unused imports:\n"
@@ -386,24 +486,36 @@ def find_unused_imports_cmd(
         result_text += "• Better IDE performance"
 
         if fix:
-            result_text += "\n\n[yellow]⚠️  Automatic fixing is not yet implemented[/yellow]"
+            result_text += (
+                "\n\n[yellow]⚠️  Automatic fixing is not yet implemented[/yellow]"
+            )
         else:
             result_text += "\n\n[dim]Use [bold]--fix[/bold] flag to automatically remove them (when available)[/dim]"
 
-        console.print(Panel(
-            result_text,
-            title=f"🔍 Import Analysis Results ({impact_level.title()} Impact)",
-            style=impact_color
-        ))
+        console.print(
+            Panel(
+                result_text,
+                title=f"🔍 Import Analysis Results ({impact_level.title()} Impact)",
+                style=impact_color,
+            )
+        )
 
 
 @app.command("functions")
 def analyze_functions(
-    path: Optional[Path] = typer.Argument(None, help="Path to analyze (default: current directory)"),
-    class_name: Optional[str] = typer.Option(None, "--class", help="Filter by class name"),
-    show_signatures: bool = typer.Option(False, "--signatures", help="Show function signatures"),
-    include_tests: bool = typer.Option(False, "--include-tests", help="Include test files"),
-):
+    path: Optional[Path] = typer.Argument(
+        None, help="Path to analyze (default: current directory)"
+    ),
+    class_name: Optional[str] = typer.Option(
+        None, "--class", help="Filter by class name"
+    ),
+    show_signatures: bool = typer.Option(
+        False, "--signatures", help="Show function signatures"
+    ),
+    include_tests: bool = typer.Option(
+        False, "--include-tests", help="Include test files"
+    ),
+) -> None:
     """Analyze functions and methods in the project."""
     if path is None:
         path = Path.cwd()
@@ -435,7 +547,7 @@ def analyze_functions(
 
         for file_path in python_files:
             try:
-                content = file_path.read_text(encoding='utf-8')
+                content = file_path.read_text(encoding="utf-8")
 
                 # Extract functions
                 functions = extract_function_signatures(content)
@@ -497,7 +609,9 @@ def analyze_functions(
         method_table.add_column("Line", justify="right")
         method_table.add_column("Type", justify="center")
 
-        for method in sorted(all_methods, key=lambda x: (x["class_name"], x["method_name"])):
+        for method in sorted(
+            all_methods, key=lambda x: (x["class_name"], x["method_name"])
+        ):
             method_type = ""
             if method["is_staticmethod"]:
                 method_type = "static"
@@ -513,22 +627,24 @@ def analyze_functions(
                 method["method_name"],
                 str(method["file"]),
                 str(method["line"]),
-                method_type
+                method_type,
             )
 
         console.print(method_table)
 
     if not all_functions and not all_methods:
         console.print()
-        console.print(Panel(
-            "[yellow]ℹ️  No functions or methods found in the analyzed files[/yellow]\n"
-            "This might indicate:\n"
-            "• Empty or non-functional Python files\n"
-            "• Files containing only imports or constants\n"
-            "• Analysis scope too narrow (try --include-tests)",
-            title="Analysis Results",
-            style="yellow"
-        ))
+        console.print(
+            Panel(
+                "[yellow]ℹ️  No functions or methods found in the analyzed files[/yellow]\n"
+                "This might indicate:\n"
+                "• Empty or non-functional Python files\n"
+                "• Files containing only imports or constants\n"
+                "• Analysis scope too narrow (try --include-tests)",
+                title="Analysis Results",
+                style="yellow",
+            )
+        )
     else:
         # Add summary at the end
         console.print()
@@ -543,24 +659,22 @@ def _get_file_count_assessment(count: int) -> str:
     """Get assessment for file count."""
     if count < 5:
         return "Small project"
-    elif count < 20:
+    if count < 20:
         return "Medium project"
-    elif count < 50:
+    if count < 50:
         return "Large project"
-    else:
-        return "Very large project"
+    return "Very large project"
 
 
 def _get_class_assessment(count: int) -> str:
     """Get assessment for class count."""
     if count == 0:
         return "Functional style"
-    elif count < 5:
+    if count < 5:
         return "Simple structure"
-    elif count < 20:
+    if count < 20:
         return "Moderate complexity"
-    else:
-        return "Complex architecture"
+    return "Complex architecture"
 
 
 def _get_method_ratio_assessment(methods: int, classes: int) -> str:
@@ -570,10 +684,9 @@ def _get_method_ratio_assessment(methods: int, classes: int) -> str:
     ratio = methods / classes
     if ratio < 3:
         return "Simple classes"
-    elif ratio < 8:
+    if ratio < 8:
         return "Moderate complexity"
-    else:
-        return "Complex classes"
+    return "Complex classes"
 
 
 def _get_issue_assessment(issues: int, total_files: int) -> str:
@@ -583,25 +696,23 @@ def _get_issue_assessment(issues: int, total_files: int) -> str:
     percentage = (issues / total_files) * 100
     if percentage < 10:
         return "Minor issues"
-    elif percentage < 25:
+    if percentage < 25:
         return "Some issues"
-    else:
-        return "Needs attention"
+    return "Needs attention"
 
 
 def _get_import_assessment(unused: int) -> str:
     """Get assessment for unused imports."""
     if unused == 0:
         return "Clean imports"
-    elif unused < 5:
+    if unused < 5:
         return "Minor cleanup"
-    elif unused < 15:
+    if unused < 15:
         return "Moderate cleanup"
-    else:
-        return "Major cleanup needed"
+    return "Major cleanup needed"
 
 
-def _generate_recommendations(stats: dict, has_git: bool) -> str:
+def _generate_recommendations(stats: dict, has_git: bool) -> str:  # noqa: FBT001
     """Generate recommendations based on analysis results."""
     recommendations = []
 
@@ -624,7 +735,9 @@ def _generate_recommendations(stats: dict, has_git: bool) -> str:
         recommendations.append("🔄 Initialize git repository for version control")
 
     # General recommendations
-    avg_lines = stats["total_lines"] / stats["total_files"] if stats["total_files"] > 0 else 0
+    avg_lines = (
+        stats["total_lines"] / stats["total_files"] if stats["total_files"] > 0 else 0
+    )
     if avg_lines > 500:
         recommendations.append("📝 Consider splitting large files")
 
@@ -632,7 +745,9 @@ def _generate_recommendations(stats: dict, has_git: bool) -> str:
         recommendations.append("✅ Code structure looks good!")
         recommendations.append("🔍 Run detailed analysis with --verbose")
 
-    return "\n".join(f"• {rec}" for rec in recommendations[:5])  # Limit to 5 recommendations
+    return "\n".join(
+        f"• {rec}" for rec in recommendations[:5]
+    )  # Limit to 5 recommendations
 
 
 if __name__ == "__main__":

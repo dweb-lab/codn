@@ -13,27 +13,28 @@ __author__ = "askender"
 __email__ = "askender43@gmail.com"
 
 # Import main utilities for convenient access
-from .utils.simple_ast import (
-    find_enclosing_function,
-    extract_inheritance_relations,
-    find_function_references,
-    extract_function_signatures,
-    find_unused_imports,
-    extract_class_methods
-)
 from .utils.git_utils import is_valid_git_repo
 from .utils.os_utils import list_all_python_files, load_gitignore, should_ignore
+from .utils.simple_ast import (
+    extract_class_methods,
+    extract_function_signatures,
+    extract_inheritance_relations,
+    find_enclosing_function,
+    find_function_references,
+    find_unused_imports,
+)
+
 
 __all__ = [
-    "__version__",
     "__author__",
     "__email__",
-    "find_enclosing_function",
-    "extract_inheritance_relations",
-    "find_function_references",
-    "extract_function_signatures",
-    "find_unused_imports",
+    "__version__",
     "extract_class_methods",
+    "extract_function_signatures",
+    "extract_inheritance_relations",
+    "find_enclosing_function",
+    "find_function_references",
+    "find_unused_imports",
     "is_valid_git_repo",
     "list_all_python_files",
     "load_gitignore",

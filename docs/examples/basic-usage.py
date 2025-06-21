@@ -6,13 +6,14 @@ This file demonstrates the core functionality of codn's AST analysis tools.
 """
 
 from codn.utils.simple_ast import (
+    extract_class_methods,
+    extract_function_signatures,
+    extract_inheritance_relations,
     find_enclosing_function,
     find_function_references,
-    extract_function_signatures,
     find_unused_imports,
-    extract_class_methods,
-    extract_inheritance_relations
 )
+
 
 # Sample code for analysis
 SAMPLE_CODE = """
@@ -71,12 +72,12 @@ def demonstrate_function_analysis():
         print(f"Function: {func['name']}")
         print(f"  Line: {func['line']}")
         print(f"  Arguments: {func['args']}")
-        if func['defaults']:
+        if func["defaults"]:
             print(f"  Defaults: {func['defaults']}")
-        if func['return_type']:
+        if func["return_type"]:
             print(f"  Return type: {func['return_type']}")
         print(f"  Async: {func['is_async']}")
-        if func['docstring']:
+        if func["docstring"]:
             print(f"  Docstring: {func['docstring']}")
         print()
 
@@ -137,18 +138,20 @@ def demonstrate_class_analysis():
     print("All methods:")
     for method in methods:
         decorators = []
-        if method['is_staticmethod']:
+        if method["is_staticmethod"]:
             decorators.append("@staticmethod")
-        if method['is_classmethod']:
+        if method["is_classmethod"]:
             decorators.append("@classmethod")
-        if method['is_property']:
+        if method["is_property"]:
             decorators.append("@property")
-        if method['is_async']:
+        if method["is_async"]:
             decorators.append("async")
 
         decorator_str = " ".join(decorators)
-        print(f"  {method['class_name']}.{method['method_name']} "
-              f"(line {method['line']}) {decorator_str}")
+        print(
+            f"  {method['class_name']}.{method['method_name']} "
+            f"(line {method['line']}) {decorator_str}"
+        )
 
     # Extract inheritance relationships
     print("\nInheritance relationships:")
@@ -163,7 +166,7 @@ def analyze_real_file(filepath: str):
     print(f"=== Analyzing File: {filepath} ===")
 
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, encoding="utf-8") as f:
             content = f.read()
 
         # Get basic statistics
@@ -183,8 +186,8 @@ def analyze_real_file(filepath: str):
         if functions:
             print("\nFirst few functions:")
             for func in functions[:3]:
-                args_str = ", ".join(func['args']) if func['args'] else ""
-                async_str = "async " if func['is_async'] else ""
+                args_str = ", ".join(func["args"]) if func["args"] else ""
+                async_str = "async " if func["is_async"] else ""
                 print(f"  {async_str}def {func['name']}({args_str})")
 
         if unused:

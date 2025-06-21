@@ -5,21 +5,22 @@ This module contains comprehensive tests for the Pyright LSP client,
 including unit tests, integration tests, and mocking scenarios.
 """
 
-import pytest
 import asyncio
 import shutil
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 from codn.utils.pyright_lsp_client import (
-    PyrightLSPClient,
+    LSPClientState,
     LSPConfig,
     LSPError,
-    LSPClientState,
-    path_to_file_uri,
-    extract_symbol_code,
-    extract_inheritance_relations,
-    find_enclosing_function,
+    PyrightLSPClient,
     _should_process_file,
+    extract_inheritance_relations,
+    extract_symbol_code,
+    find_enclosing_function,
+    path_to_file_uri,
 )
 
 
@@ -40,7 +41,7 @@ class TestPathToFileUri:
 
     def test_windows_path(self):
         """Test conversion of Windows path to file URI."""
-        with patch('platform.system', return_value='Windows'):
+        with patch("platform.system", return_value="Windows"):
             result = path_to_file_uri("C:\\Users\\test\\file.py")
             assert result.startswith("file://")
 
@@ -60,7 +61,7 @@ class TestLSPConfig:
         config = LSPConfig(
             timeout=60.0,
             enable_file_watcher=False,
-            log_level="DEBUG"
+            log_level="DEBUG",
         )
         assert config.timeout == 60.0
         assert config.enable_file_watcher is False
@@ -104,7 +105,7 @@ class TestPyrightLSPClient:
         """Test subprocess start failure."""
         client = PyrightLSPClient("file:///test", lsp_config)
 
-        with patch('asyncio.create_subprocess_exec', side_effect=FileNotFoundError):
+        with patch("asyncio.create_subprocess_exec", side_effect=FileNotFoundError):
             with pytest.raises(LSPError, match="Pyright not found"):
                 await client._start_subprocess()
 
@@ -127,7 +128,7 @@ class TestPyrightLSPClient:
         mock_proc.stdin = AsyncMock()
         client.proc = mock_proc
 
-        with patch('asyncio.wait_for', side_effect=asyncio.TimeoutError):
+        with patch("asyncio.wait_for", side_effect=asyncio.TimeoutError):
             with pytest.raises(LSPError, match="timed out"):
                 await client._request("test_method", {})
 
@@ -246,9 +247,9 @@ class TestClass:
                 "uri": "file:///test.py",
                 "range": {
                     "start": {"line": 5, "character": 4},
-                    "end": {"line": 6, "character": 25}
-                }
-            }
+                    "end": {"line": 6, "character": 25},
+                },
+            },
         }
         result = extract_symbol_code(symbol, content, strip=True)
 
@@ -262,9 +263,9 @@ class TestClass:
             "location": {
                 "range": {
                     "start": {"line": 10, "character": 0},
-                    "end": {"line": 15, "character": 0}
-                }
-            }
+                    "end": {"line": 15, "character": 0},
+                },
+            },
         }
 
         result = extract_symbol_code(symbol, content)
@@ -297,19 +298,19 @@ class AnotherClass(TestClass, Mixin):
                 "kind": 5,  # Class
                 "location": {
                     "range": {
-                        "start": {"line": 3, "character": 0}
-                    }
-                }
+                        "start": {"line": 3, "character": 0},
+                    },
+                },
             },
             {
                 "name": "AnotherClass",
                 "kind": 5,  # Class
                 "location": {
                     "range": {
-                        "start": {"line": 7, "character": 0}
-                    }
-                }
-            }
+                        "start": {"line": 7, "character": 0},
+                    },
+                },
+            },
         ]
 
         relations = extract_inheritance_relations(content, symbols)
@@ -331,10 +332,10 @@ class AnotherClass(TestClass, Mixin):
                 "kind": 5,  # Class
                 "location": {
                     "range": {
-                        "start": {"line": 0, "character": 0}
-                    }
-                }
-            }
+                        "start": {"line": 0, "character": 0},
+                    },
+                },
+            },
         ]
 
         relations = extract_inheritance_relations(content, symbols)
@@ -359,8 +360,8 @@ class AnotherClass(TestClass, Mixin):
                 "location": {
                     "range": {
                         "start": {"line": 0, "character": 0},
-                        "end": {"line": 10, "character": 0}
-                    }
+                        "end": {"line": 10, "character": 0},
+                    },
                 },
                 "children": [
                     {
@@ -369,12 +370,12 @@ class AnotherClass(TestClass, Mixin):
                         "location": {
                             "range": {
                                 "start": {"line": 5, "character": 4},
-                                "end": {"line": 8, "character": 4}
-                            }
-                        }
-                    }
-                ]
-            }
+                                "end": {"line": 8, "character": 4},
+                            },
+                        },
+                    },
+                ],
+            },
         ]
 
         result = find_enclosing_function(symbols, 6, 8)
@@ -424,8 +425,10 @@ class TestPyrightLSPClientIntegration:
 
     @pytest.mark.slow
     @pytest.mark.asyncio
-    @pytest.mark.skipif(not shutil.which("pyright-langserver"),
-                        reason="pyright-langserver not found. Install with: npm install -g pyright")
+    @pytest.mark.skipif(
+        not shutil.which("pyright-langserver"),
+        reason="pyright-langserver not found. Install with: npm install -g pyright",
+    )
     async def test_full_workflow(self, real_lsp_client, sample_python_file):
         """Test full LSP client workflow with real Pyright."""
         client = real_lsp_client
@@ -457,8 +460,10 @@ class TestPyrightLSPClientIntegration:
 
     @pytest.mark.network
     @pytest.mark.asyncio
-    @pytest.mark.skipif(not shutil.which("pyright-langserver"),
-                        reason="pyright-langserver not found. Install with: npm install -g pyright")
+    @pytest.mark.skipif(
+        not shutil.which("pyright-langserver"),
+        reason="pyright-langserver not found. Install with: npm install -g pyright",
+    )
     async def test_error_handling_with_invalid_file(self, real_lsp_client):
         """Test error handling with invalid file content."""
         client = real_lsp_client
@@ -471,7 +476,9 @@ class TestPyrightLSPClientIntegration:
 
             # Should handle errors gracefully
             symbols = await client.send_document_symbol(uri)
-            assert symbols is None or isinstance(symbols, list)  # May be empty for invalid syntax
+            assert symbols is None or isinstance(
+                symbols, list
+            )  # May be empty for invalid syntax
         except Exception as e:
             pytest.skip(f"LSP operation failed: {e}")
 

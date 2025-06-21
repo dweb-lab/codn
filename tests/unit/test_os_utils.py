@@ -5,14 +5,16 @@ This module contains comprehensive tests for file system operations,
 gitignore handling, and async file discovery functionality.
 """
 
-import pytest
-import pathspec
 from unittest.mock import patch
+
+import pathspec
+import pytest
+
 from codn.utils.os_utils import (
+    DEFAULT_SKIP_DIRS,
+    list_all_python_files,
     load_gitignore,
     should_ignore,
-    list_all_python_files,
-    DEFAULT_SKIP_DIRS
 )
 
 
@@ -106,7 +108,7 @@ dist/
         gitignore_path.write_text("*.pyc")
 
         # Mock to simulate read error
-        with patch('pathlib.Path.read_text', side_effect=OSError("Permission denied")):
+        with patch("pathlib.Path.read_text", side_effect=OSError("Permission denied")):
             spec = load_gitignore(tmp_path)
             assert isinstance(spec, pathspec.PathSpec)
             # Should return empty spec on error
@@ -115,9 +117,12 @@ dist/
     def test_load_gitignore_unicode_decode_error(self, tmp_path):
         """Test handling Unicode decode errors."""
         gitignore_path = tmp_path / ".gitignore"
-        gitignore_path.write_bytes(b'\xff\xfe*.pyc')  # Invalid UTF-8
+        gitignore_path.write_bytes(b"\xff\xfe*.pyc")  # Invalid UTF-8
 
-        with patch('pathlib.Path.read_text', side_effect=UnicodeDecodeError('utf-8', b'', 0, 1, 'invalid')):
+        with patch(
+            "pathlib.Path.read_text",
+            side_effect=UnicodeDecodeError("utf-8", b"", 0, 1, "invalid"),
+        ):
             spec = load_gitignore(tmp_path)
             assert isinstance(spec, pathspec.PathSpec)
             # Should return empty spec on decode error
@@ -139,9 +144,16 @@ class TestShouldIgnore:
         normal_file = tmp_path / "src" / "main.py"
 
         assert should_ignore(git_file, tmp_path, ignored_dirs, gitignore_spec) is True
-        assert should_ignore(pycache_file, tmp_path, ignored_dirs, gitignore_spec) is True
-        assert should_ignore(node_modules_file, tmp_path, ignored_dirs, gitignore_spec) is True
-        assert should_ignore(normal_file, tmp_path, ignored_dirs, gitignore_spec) is False
+        assert (
+            should_ignore(pycache_file, tmp_path, ignored_dirs, gitignore_spec) is True
+        )
+        assert (
+            should_ignore(node_modules_file, tmp_path, ignored_dirs, gitignore_spec)
+            is True
+        )
+        assert (
+            should_ignore(normal_file, tmp_path, ignored_dirs, gitignore_spec) is False
+        )
 
     def test_ignore_by_gitignore_patterns(self, tmp_path):
         """Test ignoring files by gitignore patterns."""
@@ -158,7 +170,9 @@ class TestShouldIgnore:
         assert should_ignore(pyc_file, tmp_path, ignored_dirs, gitignore_spec) is True
         assert should_ignore(dist_file, tmp_path, ignored_dirs, gitignore_spec) is True
         assert should_ignore(log_file, tmp_path, ignored_dirs, gitignore_spec) is True
-        assert should_ignore(python_file, tmp_path, ignored_dirs, gitignore_spec) is False
+        assert (
+            should_ignore(python_file, tmp_path, ignored_dirs, gitignore_spec) is False
+        )
 
     def test_ignore_combination(self, tmp_path):
         """Test ignoring files by both directory names and gitignore patterns."""
@@ -174,10 +188,14 @@ class TestShouldIgnore:
         # Files not ignored
         normal_file = tmp_path / "src" / "main.py"
 
-        assert should_ignore(pycache_file, tmp_path, ignored_dirs, gitignore_spec) is True
+        assert (
+            should_ignore(pycache_file, tmp_path, ignored_dirs, gitignore_spec) is True
+        )
         assert should_ignore(pyc_file, tmp_path, ignored_dirs, gitignore_spec) is True
         assert should_ignore(temp_file, tmp_path, ignored_dirs, gitignore_spec) is True
-        assert should_ignore(normal_file, tmp_path, ignored_dirs, gitignore_spec) is False
+        assert (
+            should_ignore(normal_file, tmp_path, ignored_dirs, gitignore_spec) is False
+        )
 
     def test_file_not_relative_to_root(self, tmp_path):
         """Test with file path not relative to root path."""
@@ -190,7 +208,9 @@ class TestShouldIgnore:
         external_file = other_dir / "external.py"
 
         # Should be ignored because it's not relative to root
-        assert should_ignore(external_file, tmp_path, ignored_dirs, gitignore_spec) is True
+        assert (
+            should_ignore(external_file, tmp_path, ignored_dirs, gitignore_spec) is True
+        )
 
     def test_complex_gitignore_patterns(self, tmp_path):
         """Test complex gitignore patterns."""
@@ -200,7 +220,7 @@ class TestShouldIgnore:
             "!important.pyc",  # Negation pattern
             "build/",
             "logs/*.log",
-            "**/*.tmp"
+            "**/*.tmp",
         ]
         gitignore_spec = pathspec.PathSpec.from_lines("gitwildmatch", patterns)
 
@@ -213,11 +233,16 @@ class TestShouldIgnore:
         python_file = tmp_path / "src" / "main.py"
 
         assert should_ignore(normal_pyc, tmp_path, ignored_dirs, gitignore_spec) is True
-        assert should_ignore(important_pyc, tmp_path, ignored_dirs, gitignore_spec) is False  # Negated
+        assert (
+            should_ignore(important_pyc, tmp_path, ignored_dirs, gitignore_spec)
+            is False
+        )  # Negated
         assert should_ignore(build_file, tmp_path, ignored_dirs, gitignore_spec) is True
         assert should_ignore(log_file, tmp_path, ignored_dirs, gitignore_spec) is True
         assert should_ignore(tmp_file, tmp_path, ignored_dirs, gitignore_spec) is True
-        assert should_ignore(python_file, tmp_path, ignored_dirs, gitignore_spec) is False
+        assert (
+            should_ignore(python_file, tmp_path, ignored_dirs, gitignore_spec) is False
+        )
 
     def test_empty_ignored_dirs(self, tmp_path):
         """Test with empty ignored directories set."""
@@ -229,7 +254,9 @@ class TestShouldIgnore:
         pycache_file = tmp_path / "__pycache__" / "test.pyc"
 
         assert should_ignore(git_file, tmp_path, ignored_dirs, gitignore_spec) is False
-        assert should_ignore(pycache_file, tmp_path, ignored_dirs, gitignore_spec) is False
+        assert (
+            should_ignore(pycache_file, tmp_path, ignored_dirs, gitignore_spec) is False
+        )
 
 
 class TestListAllPythonFiles:
@@ -318,7 +345,9 @@ class TestListAllPythonFiles:
 
         # Test with custom ignored dirs
         files = []
-        async for py_file in list_all_python_files(tmp_path, ignored_dirs={"custom_ignored"}):
+        async for py_file in list_all_python_files(
+            tmp_path, ignored_dirs={"custom_ignored"}
+        ):
             files.append(py_file)
 
         # Should only find main.py
@@ -472,12 +501,22 @@ class TestDefaultSkipDirs:
     def test_default_skip_dirs_content(self):
         """Test that DEFAULT_SKIP_DIRS contains expected directories."""
         expected_dirs = {
-            '.git', '.github', '__pycache__', '.venv', 'venv', 'env',
-            '.mypy_cache', '.pytest_cache', 'node_modules',
-            'dist', 'build', '.idea', '.vscode'
+            ".git",
+            ".github",
+            "__pycache__",
+            ".venv",
+            "venv",
+            "env",
+            ".mypy_cache",
+            ".pytest_cache",
+            "node_modules",
+            "dist",
+            "build",
+            ".idea",
+            ".vscode",
         }
 
-        assert DEFAULT_SKIP_DIRS == expected_dirs
+        assert expected_dirs == DEFAULT_SKIP_DIRS
 
     def test_default_skip_dirs_immutable(self):
         """Test that DEFAULT_SKIP_DIRS is a set (immutable for our purposes)."""
@@ -535,7 +574,7 @@ class TestEdgeCasesAndIntegration:
         tasks = [
             list_all_python_files(tmp_path),
             list_all_python_files(tmp_path),
-            list_all_python_files(tmp_path)
+            list_all_python_files(tmp_path),
         ]
 
         results = []

@@ -22,18 +22,18 @@ def is_valid_git_repo(path: Union[str, Path]) -> bool:
     try:
         # Check if we can access the current HEAD commit
         subprocess.run(
-            ['git', '-C', str(repo_path), 'rev-parse', 'HEAD'],
+            ["git", "-C", str(repo_path), "rev-parse", "HEAD"],
             check=True,
             capture_output=True,
-            text=True
+            text=True,
         )
 
         # Check for repository corruption
         result = subprocess.run(
-            ['git', '-C', str(repo_path), 'fsck'],
+            ["git", "-C", str(repo_path), "fsck"],
             check=True,
             capture_output=True,
-            text=True
+            text=True,
         )
 
         output_lower = result.stdout.lower()
