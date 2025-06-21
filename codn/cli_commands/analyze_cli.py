@@ -38,68 +38,21 @@ def analyze_main(ctx: typer.Context):
 
 
 def show_analyze_welcome():
-    """Display friendly welcome message for analyze command."""
+    """Display simple welcome message for analyze command."""
 
-    # Welcome header
     console.print()
-    console.print(Panel.fit(
-        "[bold blue]📊 Codn Analysis Tools[/bold blue]\n"
-        "[dim]Analyze your Python codebase with powerful insights[/dim]",
-        style="blue"
-    ))
+    console.print("[bold blue]📊 Analysis Commands[/bold blue]")
+    console.print()
 
-    # Quick analysis
-    console.print("\n[bold cyan]🚀 Quick Analysis:[/bold cyan]")
-    console.print("  [green]codn analyze project[/green]           Get comprehensive project overview")
-    console.print("  [green]codn analyze project --verbose[/green]  Get detailed file-by-file analysis")
+    # Simple command list
+    console.print("[cyan]project[/cyan]           📈 Project overview & quality score")
+    console.print("[cyan]unused-imports[/cyan]   🧹 Find unused imports")
+    console.print("[cyan]find-refs <func>[/cyan] 🔍 Find function references")
+    console.print("[cyan]functions[/cyan]        📝 List all functions")
 
-    # Available commands table
-    console.print("\n[bold cyan]📋 Available Commands:[/bold cyan]")
-
-    commands_table = Table(show_header=True, header_style="bold magenta")
-    commands_table.add_column("Command", style="cyan", width=25)
-    commands_table.add_column("Description", style="white")
-
-    commands_table.add_row(
-        "project", "📈 Comprehensive project statistics and quality score"
-    )
-    commands_table.add_row(
-        "find-refs <function>", "🔍 Find all references to a specific function"
-    )
-    commands_table.add_row(
-        "unused-imports", "🧹 Detect and help remove unused import statements"
-    )
-    commands_table.add_row(
-        "functions", "📝 List all functions and methods with details"
-    )
-
-    console.print(commands_table)
-
-    # Usage examples
-    console.print("\n[bold cyan]💡 Usage Examples:[/bold cyan]")
-    examples = [
-        "[dim]# Get project overview with quality score[/dim]",
-        "[green]codn analyze project[/green]",
-        "",
-        "[dim]# Find where a function is used[/dim]",
-        "[green]codn analyze find-refs my_function[/green]",
-        "",
-        "[dim]# Clean up unused imports[/dim]",
-        "[green]codn analyze unused-imports[/green]",
-        "",
-        "[dim]# List functions with signatures[/dim]",
-        "[green]codn analyze functions --signatures[/green]"
-    ]
-
-    for example in examples:
-        console.print(f"  {example}")
-
-    # Help footer
-    console.print(f"\n[bold cyan]📚 Need Help?[/bold cyan]")
-    console.print("  [green]codn analyze --help[/green]         Show detailed help for all commands")
-    console.print("  [green]codn analyze <command> --help[/green]  Show help for specific command")
-
-    console.print(f"\n[dim]💡 Tip: Start with 'codn analyze project' for a complete overview![/dim]")
+    console.print()
+    console.print("[bold yellow]💡 Tip:[/bold yellow] Use [green]codn[/green] (without analyze) for shorter commands!")
+    console.print("[dim]Examples: codn unused, codn refs <func>, codn funcs[/dim]")
 
 
 @app.command("project")

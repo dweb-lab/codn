@@ -5,22 +5,33 @@
 
 # Default target
 help:
-	@echo "Available commands:"
+	@echo "🔍 Codn Development Commands"
+	@echo "================================"
+	@echo ""
+	@echo "📦 Setup & Installation:"
+	@echo "  setup-help     - Show installation helper (detects uv/pip)"
+	@echo "  install        - Install with uv (recommended)"
+	@echo "  install-pip    - Install with pip (fallback)"
+	@echo "  dev-install    - Install with dev dependencies"
+	@echo ""
+	@echo "🧪 Testing:"
 	@echo "  test           - Run all tests"
 	@echo "  test-unit      - Run unit tests only"
 	@echo "  test-integration - Run integration tests only"
-	@echo "  test-slow      - Run slow tests"
 	@echo "  test-cov       - Run tests with coverage report"
-	@echo "  test-html      - Run tests and generate HTML coverage report"
+	@echo "  test-html      - Generate HTML coverage report"
 	@echo "  test-watch     - Run tests in watch mode"
-	@echo "  test-parallel  - Run tests in parallel"
+	@echo ""
+	@echo "🔧 Code Quality:"
 	@echo "  lint           - Run linting checks"
 	@echo "  format         - Format code"
 	@echo "  check          - Run all checks (lint + test)"
-	@echo "  install        - Install package"
-	@echo "  dev-install    - Install package with dev dependencies"
-	@echo "  clean          - Clean build artifacts and cache"
-	@echo "  all            - Run format, lint, and test"
+	@echo ""
+	@echo "🚀 Quick Commands:"
+	@echo "  run            - Run codn command (uv run codn)"
+	@echo "  demo           - Run codn on current project"
+	@echo "  clean          - Clean build artifacts"
+	@echo "  all            - Format, lint, and test"
 
 # Test commands
 test:
@@ -78,15 +89,30 @@ format:
 
 check: lint test
 
-# Installation commands
+# Setup and installation commands
+setup-help:
+	@echo "🔍 Checking your environment..."
+	@python3 install.py
+
 install:
+	@echo "📦 Installing with uv (recommended)..."
+	@command -v uv >/dev/null 2>&1 || { echo "❌ uv not found. Run 'make setup-help' for installation options."; exit 1; }
 	uv sync
+	@echo "✅ Installation complete! Try: make run"
+
+install-pip:
+	@echo "📦 Installing with pip..."
+	pip install -e .
+	@echo "✅ Installation complete! Try: codn --help"
 
 dev-install:
+	@echo "📦 Installing development environment..."
+	@command -v uv >/dev/null 2>&1 || { echo "❌ uv not found. Installing with pip..."; pip install -e .; exit 0; }
 	uv sync --group dev
+	@echo "✅ Development environment ready!"
 
 test-install:
-	uv sync --group test
+	@command -v uv >/dev/null 2>&1 && uv sync --group test || pip install -e .[test]
 
 # Clean commands
 clean:
@@ -115,12 +141,38 @@ ci-lint:
 	uv run ruff check . --output-format=github
 	uv run mypy codn --junit-xml reports/mypy.xml
 
+# Quick run commands
+run:
+	@command -v uv >/dev/null 2>&1 && uv run codn $(ARGS) || codn $(ARGS)
+
+demo:
+	@echo "🔍 Running codn analysis on current project..."
+	@command -v uv >/dev/null 2>&1 && uv run codn || codn
+
+demo-unused:
+	@echo "🧹 Checking for unused imports..."
+	@command -v uv >/dev/null 2>&1 && uv run codn unused || codn unused
+
+demo-funcs:
+	@echo "📝 Listing functions..."
+	@command -v uv >/dev/null 2>&1 && uv run codn funcs || codn funcs
+
 # Development workflow
 dev-setup: dev-install
-	@echo "Development environment setup complete!"
+	@echo "✅ Development environment setup complete!"
+	@echo "Try: make demo"
 
 pre-commit: format lint test-fast
-	@echo "Pre-commit checks passed!"
+	@echo "✅ Pre-commit checks passed!"
+
+first-time-setup:
+	@echo "🚀 First-time setup for codn development"
+	@echo "========================================"
+	@python3 install.py
+	@echo ""
+	@echo "Choose your setup method:"
+	@echo "1. make install     (with uv - recommended)"
+	@echo "2. make install-pip (with pip - fallback)"
 
 # Build commands
 build:
@@ -140,8 +192,20 @@ release-test:
 
 # All-in-one commands
 all: format lint test
+	@echo "🎉 All checks passed!"
 
 quick: format lint test-fast
+	@echo "⚡ Quick checks passed!"
+
+# Environment info
+env-info:
+	@echo "🔍 Environment Information"
+	@echo "========================="
+	@echo "Python: $(shell python3 --version)"
+	@echo "uv: $(shell command -v uv >/dev/null 2>&1 && uv --version || echo 'Not installed')"
+	@echo "pip: $(shell command -v pip >/dev/null 2>&1 && pip --version || echo 'Not installed')"
+	@echo "Virtual env: $(shell python3 -c 'import sys; print("Yes" if hasattr(sys, "real_prefix") or (hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix) else "No")')"
+	@echo "Project root: $(shell pwd)"
 
 # Docker commands (if you use Docker)
 docker-test:

@@ -20,23 +20,51 @@ A powerful and intuitive toolkit for analyzing Python codebases.
 
 ### Installation
 
+#### Using uv (Recommended)
+```bash
+# Install uv if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install codn
+uv tool install codn
+```
+
+#### Using pip
 ```bash
 pip install codn
+```
+
+#### For Development
+```bash
+# Clone the repository
+git clone https://github.com/dweb-lab/codn.git
+cd codn
+
+# Install with uv (recommended)
+uv sync
+uv run codn --help
+
+# Or install with pip
+pip install -e .
 ```
 
 ### Basic Usage
 
 ```bash
-# Analyze your project
+# Quick project analysis (most common)
+codn
+
+# Or use the detailed commands
 codn analyze project
 
-# Find function references
-codn analyze find-refs my_function
+# Simplified commands (less typing!)
+codn unused              # Find unused imports
+codn refs my_function    # Find function references
+codn funcs               # List all functions
 
-# Check for unused imports
+# Traditional verbose commands (still supported)
 codn analyze unused-imports
-
-# List all functions
+codn analyze find-refs my_function
 codn analyze functions --signatures
 ```
 
@@ -47,11 +75,15 @@ codn analyze functions --signatures
 **Understand a new codebase:**
 ```bash
 cd /path/to/project
+codn --verbose          # Quick way
+# or
 codn analyze project --verbose
 ```
 
 **Find where a function is used:**
 ```bash
+codn refs calculate_total        # Quick way
+# or
 codn analyze find-refs calculate_total
 ```
 
@@ -59,11 +91,15 @@ codn analyze find-refs calculate_total
 
 **Find unused imports:**
 ```bash
+codn unused                     # Quick way
+# or
 codn analyze unused-imports
 ```
 
 **Get function overview:**
 ```bash
+codn funcs --signatures         # Quick way
+# or
 codn analyze functions --signatures
 ```
 
@@ -112,6 +148,15 @@ Project Analysis Results
 
 ## 🎯 Key Commands
 
+### Quick Commands (Recommended)
+| Command | Description | Example |
+|---------|-------------|---------|
+| `codn` | Project overview (default) | `codn` |
+| `unused` | Find unused imports | `codn unused` |
+| `refs <func>` | Find function references | `codn refs main` |
+| `funcs` | List functions and methods | `codn funcs --signatures` |
+
+### Full Commands (Traditional)
 | Command | Description | Example |
 |---------|-------------|---------|
 | `analyze project` | Project overview and statistics | `codn analyze project` |
@@ -120,11 +165,31 @@ Project Analysis Results
 | `analyze functions` | List functions and methods | `codn analyze functions --signatures` |
 | `git check` | Validate Git repository | `codn git check` |
 
+> 💡 **Tip**: Use quick commands to save typing! `codn` = `codn analyze project`, `codn unused` = `codn analyze unused-imports`, etc.
+
 ## 🏗️ Requirements
 
 - Python 3.8+
 - Works with any Python project
 - No configuration required
+
+### Package Manager Notes
+
+- **uv**: Recommended for faster installs and better dependency management
+- **pip**: Traditional option, works everywhere
+- Both methods install the same functionality
+
+### Environment Management
+
+```bash
+# With uv (handles virtual environments automatically)
+uv tool install codn
+
+# With pip in virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install codn
+```
 
 ## 📚 Documentation
 
