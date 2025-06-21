@@ -60,8 +60,8 @@ python_functions = ["test_*"]
 addopts = [
     "--strict-markers",
     "--strict-config",
-    "--verbose",
-    "--tb=short",
+    "--tb=line",
+    "-q",
 ]
 
 # 并行测试
@@ -92,10 +92,10 @@ filterwarnings = [
 minversion = "7.0"
 
 # 日志配置
-log_cli = true
-log_cli_level = "INFO"
-log_cli_format = "%(asctime)s [%(levelname)8s] %(name)s: %(message)s"
-log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+log_cli = false
+log_cli_level = "WARNING"
+log_cli_format = "%(levelname)s: %(message)s"
+log_cli_date_format = "%H:%M:%S"
 
 [tool.coverage.run]
 source = ["codn"]

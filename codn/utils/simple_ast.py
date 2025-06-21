@@ -36,12 +36,39 @@ def find_enclosing_function(content: str, line: int, character: int) -> Optional
             start_line = getattr(node, 'lineno', None)
             end_line = getattr(node, 'end_lineno', None)
 
-            if start_line is not None and end_line is not None:
+            if start_line is not None:
                 # Convert to 0-based indexing for comparison
-                if start_line - 1 <= line <= end_line - 1:
-                    enclosing_functions.append(node.name)
+                start_line_0based = start_line - 1
+
+                if end_line is not None:
+                    # If end_lineno is available, use precise range check
+                    end_line_0based = end_line - 1
+                    if start_line_0based <= line <= end_line_0based:
+                        enclosing_functions.append(node.name)
+                else:
+                    # Fallback: estimate end line based on function body
+                    estimated_end_line = self._estimate_function_end(node)
+                    if start_line_0based <= line <= estimated_end_line:
+                        enclosing_functions.append(node.name)
 
             self.generic_visit(node)
+
+        def _estimate_function_end(self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef]) -> int:
+            """Estimate the end line of a function when end_lineno is not available."""
+            if not node.body:
+                return getattr(node, 'lineno', 1) - 1
+
+            # Find the maximum line number among all statements in the function body
+            max_line = getattr(node, 'lineno', 1)
+            for stmt in node.body:
+                if hasattr(stmt, 'lineno') and stmt.lineno:
+                    max_line = max(max_line, stmt.lineno)
+                # Also check nested nodes within each statement
+                for child in ast.walk(stmt):
+                    if hasattr(child, 'lineno') and child.lineno:
+                        max_line = max(max_line, child.lineno)
+
+            return max_line - 1  # Convert to 0-based
 
         def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
             self._check_function_node(node)
