@@ -194,3 +194,25 @@ cython_debug/
 .cursorindexingignore
 
 demo
+
+# pytest and testing
+reports/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+*.cover
+*.py,cover
+.hypothesis/
+coverage.xml
+junit.xml
+test-results/
+pytest.xml
+mypy.xml
+
+# Test artifacts
+test_*.log
+test_output/
+.testmondata

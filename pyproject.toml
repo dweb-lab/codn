@@ -8,15 +8,117 @@ version = "0.1.0"
 description = "A tiny, modular library for common coding tasks."
 authors = [{ name = "askender", email = "askender43@gmail.com" }]
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
+license = { text = "MIT" }
 dependencies = ["typer", "watchfiles", "pathspec", "loguru"]
-license = "MIT"
 
-[tool.setuptools]
-packages = ["codn"]
+[dependency-groups]
+test = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0",
+    "pytest-mock>=3.10",
+    "pytest-xdist>=3.0",
+    "pytest-timeout>=2.1",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0",
+    "pytest-mock>=3.10",
+    "pytest-xdist>=3.0",
+    "pytest-timeout>=2.1",
+    "black>=22.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+    "pre-commit>=3.0",
+]
+lint = [
+    "black>=22.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["codn*"]
 
 [project.urls]
 Homepage = "https://github.com/dweb-lab/codn"
 
 [project.scripts]
 codn = "codn.cli:app"
+
+[tool.pytest.ini_options]
+# 测试发现和收集
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# 输出格式
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+    "--tb=short",
+]
+
+# 并行测试
+# addopts = ["-n", "auto"]  # 启用时使用pytest-xdist并行测试
+
+# 异步测试支持
+asyncio_mode = "auto"
+
+# 测试标记
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "async: marks tests as async tests",
+    "network: marks tests that require network access",
+    "skip_ci: marks tests to skip in CI environment",
+]
+
+# 过滤警告
+filterwarnings = [
+    "error",
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+# 最小版本要求
+minversion = "7.0"
+
+# 日志配置
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s [%(levelname)8s] %(name)s: %(message)s"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+
+[tool.coverage.run]
+source = ["codn"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+    "*/venv/*",
+    "*/.venv/*",
+    "setup.py",
+    "*/cli.py",  # CLI入口点通常不需要测试覆盖
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
