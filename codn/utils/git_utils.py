@@ -1,35 +1,51 @@
-import os
 import subprocess
+from pathlib import Path
+from typing import Union
 
-def is_valid_git_repo(path: str) -> bool:
+
+def is_valid_git_repo(path: Union[str, Path]) -> bool:
     """
-    Checks whether the given path is a valid and healthy Git repository.
+    Check if the given path is a valid and healthy Git repository.
 
-    Parameters:
-        path (str): Path to the root of a potential Git repository.
+    Args:
+        path: Path to the root of a potential Git repository.
 
     Returns:
-        bool: True if the path is a valid, healthy Git repository, False otherwise.
+        True if the path is a valid, healthy Git repository, False otherwise.
     """
-    git_dir = os.path.join(path, ".git")
-    if not os.path.isdir(git_dir):
+    repo_path = Path(path).resolve()
+    git_dir = repo_path / ".git"
+
+    if not git_dir.exists():
         return False
 
     try:
         # Check if we can access the current HEAD commit
-        subprocess.check_output(['git', '-C', path, 'rev-parse', 'HEAD'],
-                                stderr=subprocess.STDOUT)
+        subprocess.run(
+            ['git', '-C', str(repo_path), 'rev-parse', 'HEAD'],
+            check=True,
+            capture_output=True,
+            text=True
+        )
 
-        # Check for repository corruption (missing objects, etc.)
-        fsck_output = subprocess.check_output(['git', '-C', path, 'fsck'],
-                                              stderr=subprocess.STDOUT).decode()
+        # Check for repository corruption
+        result = subprocess.run(
+            ['git', '-C', str(repo_path), 'fsck'],
+            check=True,
+            capture_output=True,
+            text=True
+        )
 
-        if "missing" in fsck_output.lower() or "error" in fsck_output.lower():
-            print("Possible Git repository corruption:", fsck_output)
+        output_lower = result.stdout.lower()
+        if "missing" in output_lower or "error" in output_lower:
+            print(f"Possible Git repository corruption: {result.stdout}")
             return False
 
         return True
 
     except subprocess.CalledProcessError as e:
-        print("Git check failed:", e.output.decode())
+        print(f"Git check failed: {e.stderr or e.stdout}")
+        return False
+    except FileNotFoundError:
+        print("Git command not found")
         return False
