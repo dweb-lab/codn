@@ -27,6 +27,8 @@ help:
 	@echo "  format         - Format code"
 	@echo "  check          - Run all checks (lint + test)"
 	@echo "  quality        - Run full quality pipeline"
+	@echo "  pre-commit-fast - Fast ruff checks (no network)"
+	@echo "  test-hooks-fast - Test hooks using local ruff"
 	@echo ""
 	@echo "🪝 Git Hooks:"
 	@echo "  setup-hooks    - Setup git hooks for code quality"
@@ -103,6 +105,15 @@ lint:
 	@echo "Running mypy type checking..."
 	@command -v uv >/dev/null 2>&1 && uv run mypy codn --ignore-missing-imports || mypy codn --ignore-missing-imports
 	@echo "✅ Linting complete!"
+
+# Fast pre-commit checks (using local ruff, no network required)
+pre-commit-fast:
+	@echo "🚀 Running fast pre-commit checks..."
+	@echo "📝 Running ruff lint..."
+	@command -v uv >/dev/null 2>&1 && uv run ruff check codn/ --fix || ruff check codn/ --fix
+	@echo "🎨 Running ruff format..."
+	@command -v uv >/dev/null 2>&1 && uv run ruff format codn/ || ruff format codn/
+	@echo "✅ Fast pre-commit checks complete!"
 
 ruff-check:
 	@echo "🔍 Running ruff checks..."
@@ -280,6 +291,12 @@ ci-lint:
 run:
 	@command -v uv >/dev/null 2>&1 && uv run codn $(ARGS) || codn $(ARGS)
 
+# Test pre-commit hooks (using local installation, fast)
+test-hooks-fast:
+	@echo "🧪 Testing git hooks (fast, using local ruff)..."
+	@make pre-commit-fast
+	@echo "✅ Fast hooks test complete!"
+
 demo:
 	@echo "🔍 Running codn analysis on current project..."
 	@command -v uv >/dev/null 2>&1 && uv run codn || codn
@@ -332,9 +349,13 @@ all: format lint test
 quick: format lint test-fast
 	@echo "⚡ Quick checks passed!"
 
-# Pre-commit simulation
+# Pre-commit simulation (full)
 pre-commit-check: format-check lint test-fast
 	@echo "🪝 Pre-commit checks simulation passed!"
+
+# Pre-commit simulation (fast, ruff only)
+pre-commit-ruff-only: pre-commit-fast
+	@echo "🪝 Fast ruff-only pre-commit checks passed!"
 
 # Environment info
 env-info:

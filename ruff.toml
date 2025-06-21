@@ -155,7 +155,6 @@ ignore = [
     "ANN401",
     # Allow missing type annotations for now
     "ANN001",
-    "ANN101",
     "ANN201",
     "ANN204",
     # Allow missing docstrings for now
