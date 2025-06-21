@@ -554,3 +554,230 @@ def func3():
 """
         result = find_enclosing_function(content, line_num, 0)
         assert result == expected
+
+
+class TestFindFunctionReferences:
+    """Test cases for find_function_references function."""
+
+    def test_simple_function_references(self):
+        """Test finding references to a simple function."""
+        content = """
+def my_function():
+    return True
+
+result = my_function()
+value = my_function()
+"""
+        from codn.utils.simple_ast import find_function_references
+
+        references = find_function_references(content, "my_function")
+        assert len(references) == 2
+        assert (5, 9) in references  # First call
+        assert (6, 8) in references  # Second call
+
+    def test_no_references(self):
+        """Test function with no references."""
+        content = """
+def my_function():
+    return True
+
+def other_function():
+    return False
+"""
+        from codn.utils.simple_ast import find_function_references
+
+        references = find_function_references(content, "unused_function")
+        assert len(references) == 0
+
+    def test_method_references(self):
+        """Test finding references to methods."""
+        content = """
+class MyClass:
+    def method(self):
+        return True
+
+obj = MyClass()
+obj.method()
+"""
+        from codn.utils.simple_ast import find_function_references
+
+        references = find_function_references(content, "method")
+        assert len(references) == 1
+        assert (7, 0) in references
+
+
+class TestExtractFunctionSignatures:
+    """Test cases for extract_function_signatures function."""
+
+    def test_simple_function_signature(self):
+        """Test extracting signature of a simple function."""
+        content = """
+def simple_func(a, b):
+    '''A simple function.'''
+    return a + b
+"""
+        from codn.utils.simple_ast import extract_function_signatures
+
+        signatures = extract_function_signatures(content)
+        assert len(signatures) == 1
+
+        func = signatures[0]
+        assert func["name"] == "simple_func"
+        assert func["line"] == 2
+        assert func["args"] == ["a", "b"]
+        assert func["docstring"] == "A simple function."
+        assert func["is_async"] is False
+
+    def test_async_function_signature(self):
+        """Test extracting signature of an async function."""
+        content = """
+async def async_func(x: int) -> str:
+    return str(x)
+"""
+        from codn.utils.simple_ast import extract_function_signatures
+
+        signatures = extract_function_signatures(content)
+        assert len(signatures) == 1
+
+        func = signatures[0]
+        assert func["name"] == "async_func"
+        assert func["is_async"] is True
+        assert func["args"] == ["x"]
+
+    def test_function_with_defaults(self):
+        """Test extracting signature with default arguments."""
+        content = """
+def func_with_defaults(a, b=10, c="hello"):
+    return a + b
+"""
+        from codn.utils.simple_ast import extract_function_signatures
+
+        signatures = extract_function_signatures(content)
+        assert len(signatures) == 1
+
+        func = signatures[0]
+        assert func["name"] == "func_with_defaults"
+        assert func["args"] == ["a", "b", "c"]
+        assert func["defaults"] == ["10", "'hello'"]
+
+
+class TestFindUnusedImports:
+    """Test cases for find_unused_imports function."""
+
+    def test_unused_import(self):
+        """Test finding unused imports."""
+        content = """
+import os
+import sys
+from pathlib import Path
+
+print("Hello")
+"""
+        from codn.utils.simple_ast import find_unused_imports
+
+        unused = find_unused_imports(content)
+        assert len(unused) == 3
+        unused_names = [name for name, line in unused]
+        assert "os" in unused_names
+        assert "sys" in unused_names
+        assert "Path" in unused_names
+
+    def test_used_import(self):
+        """Test that used imports are not reported as unused."""
+        content = """
+import os
+from pathlib import Path
+
+path = Path("/tmp")
+print(os.getcwd())
+"""
+        from codn.utils.simple_ast import find_unused_imports
+
+        unused = find_unused_imports(content)
+        assert len(unused) == 0
+
+    def test_import_with_alias(self):
+        """Test imports with aliases."""
+        content = """
+import numpy as np
+import pandas as pd
+
+data = np.array([1, 2, 3])
+"""
+        from codn.utils.simple_ast import find_unused_imports
+
+        unused = find_unused_imports(content)
+        assert len(unused) == 1
+        assert unused[0][0] == "pd"
+
+
+class TestExtractClassMethods:
+    """Test cases for extract_class_methods function."""
+
+    def test_simple_class_methods(self):
+        """Test extracting methods from a simple class."""
+        content = """
+class MyClass:
+    def __init__(self):
+        pass
+
+    def method1(self):
+        return True
+
+    @staticmethod
+    def static_method():
+        return False
+
+    @classmethod
+    def class_method(cls):
+        return cls
+"""
+        from codn.utils.simple_ast import extract_class_methods
+
+        methods = extract_class_methods(content)
+        assert len(methods) == 4
+
+        method_names = [m["method_name"] for m in methods]
+        assert "__init__" in method_names
+        assert "method1" in method_names
+        assert "static_method" in method_names
+        assert "class_method" in method_names
+
+        # Check static method detection
+        static_method = next(m for m in methods if m["method_name"] == "static_method")
+        assert static_method["is_staticmethod"] is True
+
+        # Check class method detection
+        class_method = next(m for m in methods if m["method_name"] == "class_method")
+        assert class_method["is_classmethod"] is True
+
+    def test_specific_class_methods(self):
+        """Test extracting methods from a specific class."""
+        content = """
+class ClassA:
+    def method_a(self):
+        pass
+
+class ClassB:
+    def method_b(self):
+        pass
+"""
+        from codn.utils.simple_ast import extract_class_methods
+
+        methods = extract_class_methods(content, "ClassA")
+        assert len(methods) == 1
+        assert methods[0]["method_name"] == "method_a"
+        assert methods[0]["class_name"] == "ClassA"
+
+    def test_async_method(self):
+        """Test extracting async methods."""
+        content = """
+class AsyncClass:
+    async def async_method(self):
+        return True
+"""
+        from codn.utils.simple_ast import extract_class_methods
+
+        methods = extract_class_methods(content)
+        assert len(methods) == 1
+        assert methods[0]["is_async"] is True

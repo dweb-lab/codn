@@ -1,5 +1,6 @@
 import ast
-from typing import Optional, List, Tuple, Union
+from typing import Optional, List, Tuple, Union, Dict, Set
+from pathlib import Path
 
 
 def find_enclosing_function(content: str, line: int, character: int) -> Optional[str]:
@@ -131,3 +132,207 @@ def _extract_base_name(base: ast.expr) -> Optional[str]:
             return f"{value_name}.{base.attr}"
         return base.attr
     return None
+
+
+def find_function_references(content: str, function_name: str) -> List[Tuple[int, int]]:
+    """
+    Find all references to a function in the given content.
+
+    Args:
+        content: Python source code
+        function_name: Name of the function to find references for
+
+    Returns:
+        List of tuples (line_number, column_offset) where the function is referenced
+    """
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        return []
+
+    references = []
+
+    class ReferenceVisitor(ast.NodeVisitor):
+        def visit_Name(self, node: ast.Name) -> None:
+            if node.id == function_name and isinstance(node.ctx, ast.Load):
+                references.append((node.lineno, node.col_offset))
+            self.generic_visit(node)
+
+        def visit_Attribute(self, node: ast.Attribute) -> None:
+            if node.attr == function_name:
+                references.append((node.lineno, node.col_offset))
+            self.generic_visit(node)
+
+    visitor = ReferenceVisitor()
+    visitor.visit(tree)
+    return references
+
+
+def extract_function_signatures(content: str) -> List[Dict[str, Union[str, int, List[str]]]]:
+    """
+    Extract function signatures from Python source code.
+
+    Args:
+        content: Python source code
+
+    Returns:
+        List of dictionaries containing function information
+    """
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        return []
+
+    functions = []
+
+    class FunctionVisitor(ast.NodeVisitor):
+        def _extract_function_info(self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef]) -> None:
+            args = []
+            defaults = []
+
+            # Extract argument names
+            for arg in node.args.args:
+                args.append(arg.arg)
+
+            # Extract default values
+            for default in node.args.defaults:
+                if isinstance(default, ast.Constant):
+                    if isinstance(default.value, str):
+                        defaults.append(f"'{default.value}'")
+                    else:
+                        defaults.append(str(default.value))
+                elif isinstance(default, ast.Name):
+                    defaults.append(default.id)
+                else:
+                    defaults.append("...")
+
+            # Extract return type annotation if present
+            return_type = None
+            if node.returns:
+                if isinstance(node.returns, ast.Name):
+                    return_type = node.returns.id
+                elif isinstance(node.returns, ast.Constant):
+                    return_type = str(node.returns.value)
+
+            function_info = {
+                "name": node.name,
+                "line": node.lineno,
+                "args": args,
+                "defaults": defaults,
+                "return_type": return_type,
+                "is_async": isinstance(node, ast.AsyncFunctionDef),
+                "docstring": ast.get_docstring(node)
+            }
+
+            functions.append(function_info)
+            self.generic_visit(node)
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self._extract_function_info(node)
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            self._extract_function_info(node)
+
+    visitor = FunctionVisitor()
+    visitor.visit(tree)
+    return functions
+
+
+def find_unused_imports(content: str) -> List[Tuple[str, int]]:
+    """
+    Find unused imports in Python source code.
+
+    Args:
+        content: Python source code
+
+    Returns:
+        List of tuples (import_name, line_number) for unused imports
+    """
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        return []
+
+    imported_names = set()
+    used_names = set()
+
+    class ImportVisitor(ast.NodeVisitor):
+        def visit_Import(self, node: ast.Import) -> None:
+            for alias in node.names:
+                name = alias.asname if alias.asname else alias.name
+                imported_names.add((name, node.lineno))
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            for alias in node.names:
+                name = alias.asname if alias.asname else alias.name
+                imported_names.add((name, node.lineno))
+
+        def visit_Name(self, node: ast.Name) -> None:
+            if isinstance(node.ctx, ast.Load):
+                used_names.add(node.id)
+
+        def visit_Attribute(self, node: ast.Attribute) -> None:
+            # Handle module.attribute usage
+            if isinstance(node.value, ast.Name):
+                used_names.add(node.value.id)
+            self.generic_visit(node)
+
+    visitor = ImportVisitor()
+    visitor.visit(tree)
+
+    unused_imports = []
+    for name, line in imported_names:
+        if name not in used_names:
+            unused_imports.append((name, line))
+
+    return unused_imports
+
+
+def extract_class_methods(content: str, class_name: Optional[str] = None) -> List[Dict[str, Union[str, int, List[str]]]]:
+    """
+    Extract methods from classes in Python source code.
+
+    Args:
+        content: Python source code
+        class_name: Optional specific class name to extract methods from
+
+    Returns:
+        List of dictionaries containing method information
+    """
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        return []
+
+    methods = []
+
+    class ClassVisitor(ast.NodeVisitor):
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            if class_name is None or node.name == class_name:
+                for item in node.body:
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        method_info = {
+                            "class_name": node.name,
+                            "method_name": item.name,
+                            "line": item.lineno,
+                            "is_async": isinstance(item, ast.AsyncFunctionDef),
+                            "is_classmethod": any(
+                                isinstance(d, ast.Name) and d.id == "classmethod"
+                                for d in item.decorator_list
+                            ),
+                            "is_staticmethod": any(
+                                isinstance(d, ast.Name) and d.id == "staticmethod"
+                                for d in item.decorator_list
+                            ),
+                            "is_property": any(
+                                isinstance(d, ast.Name) and d.id == "property"
+                                for d in item.decorator_list
+                            ),
+                            "docstring": ast.get_docstring(item)
+                        }
+                        methods.append(method_info)
+            self.generic_visit(node)
+
+    visitor = ClassVisitor()
+    visitor.visit(tree)
+    return methods

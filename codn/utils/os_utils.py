@@ -55,6 +55,34 @@ def should_ignore(
         return True
 
 
+def list_all_python_files_sync(
+    root: Union[str, Path] = ".",
+    ignored_dirs: Optional[Set[str]] = None
+) -> list[Path]:
+    """
+    Synchronously return all Python files in the directory tree.
+
+    Args:
+        root: Root directory to start searching from
+        ignored_dirs: Set of directory names to ignore
+
+    Returns:
+        List of Path objects for Python files that should not be ignored
+    """
+    if ignored_dirs is None:
+        ignored_dirs = DEFAULT_SKIP_DIRS
+
+    root_path = Path(root).resolve()
+    gitignore_spec = load_gitignore(root_path)
+
+    python_files = []
+    for py_file in root_path.rglob("*.py"):
+        if not should_ignore(py_file, root_path, ignored_dirs, gitignore_spec):
+            python_files.append(py_file)
+
+    return python_files
+
+
 async def list_all_python_files(
     root: Union[str, Path] = ".",
     ignored_dirs: Optional[Set[str]] = None

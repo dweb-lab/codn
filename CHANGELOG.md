@@ -7,7 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.1] - 2024-12-19
+## [0.1.2] - 2025-06-21
+
+### Added
+- **New AST Analysis Functions**:
+  - `find_function_references()` - Find all references to a function in source code
+  - `extract_function_signatures()` - Extract detailed function signature information
+  - `find_unused_imports()` - Detect unused import statements
+  - `extract_class_methods()` - Extract methods from classes with detailed metadata
+
+- **Enhanced CLI Commands**:
+  - `codn analyze project` - Comprehensive project analysis with statistics
+  - `codn analyze find-refs <function_name>` - Find function references across project
+  - `codn analyze unused-imports` - Find and report unused imports
+  - `codn analyze functions` - Analyze functions and methods with signature details
+
+- **Rich UI Support**:
+  - Added rich library for beautiful terminal output
+  - Progress bars for long-running operations
+  - Colorized tables and formatted output
+  - Better error display and user experience
+
+- **Synchronous File Operations**:
+  - Added `list_all_python_files_sync()` for non-async file discovery
+  - Improved CLI performance with synchronous operations
+
+### Changed
+- Enhanced package imports to include all new analysis functions
+- Improved error handling in CLI commands with graceful path resolution
+- Better test coverage with 12+ new test cases for analysis functions
+
+### Fixed
+- Fixed path resolution issues in CLI commands
+- Improved AST function signature extraction with proper default value handling
+- Better handling of edge cases in reference detection
+
+## [0.1.1] - 2025-06-21
 
 ### Fixed
 - Fixed `find_enclosing_function` in `simple_ast.py` to handle cases when `end_lineno` is not available
@@ -23,7 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced unit test coverage with comprehensive test cases
 - Added robust AST function detection with fallback mechanisms
 
-## [0.1.0] - 2024-12-19
+## [0.1.0] - 2025-06-18
 
 ### Added
 - Initial release of codn library
@@ -46,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - LSP client for static analysis integration
 - Cross-platform compatibility
 
-[Unreleased]: https://github.com/dweb-lab/codn/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/dweb-lab/codn/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/dweb-lab/codn/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/dweb-lab/codn/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/dweb-lab/codn/releases/tag/v0.1.0

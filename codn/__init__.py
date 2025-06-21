@@ -8,12 +8,19 @@ This package provides utilities for Python development including:
 - File system operations with gitignore support
 """
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __author__ = "askender"
 __email__ = "askender43@gmail.com"
 
 # Import main utilities for convenient access
-from .utils.simple_ast import find_enclosing_function, extract_inheritance_relations
+from .utils.simple_ast import (
+    find_enclosing_function,
+    extract_inheritance_relations,
+    find_function_references,
+    extract_function_signatures,
+    find_unused_imports,
+    extract_class_methods
+)
 from .utils.git_utils import is_valid_git_repo
 from .utils.os_utils import list_all_python_files, load_gitignore, should_ignore
 
@@ -23,6 +30,10 @@ __all__ = [
     "__email__",
     "find_enclosing_function",
     "extract_inheritance_relations",
+    "find_function_references",
+    "extract_function_signatures",
+    "find_unused_imports",
+    "extract_class_methods",
     "is_valid_git_repo",
     "list_all_python_files",
     "load_gitignore",
