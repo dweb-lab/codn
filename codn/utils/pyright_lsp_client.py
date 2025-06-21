@@ -141,7 +141,7 @@ class PyrightLSPClient:
 
         try:
             await self._send(
-                {"jsonrpc": "2.0", "id": msg_id, "method": method, "params": params}
+                {"jsonrpc": "2.0", "id": msg_id, "method": method, "params": params},
             )
             result = await asyncio.wait_for(future, timeout=self.config.timeout)
 
@@ -288,7 +288,11 @@ class PyrightLSPClient:
         logger.info(f"LSP Message (type {msg_type}): {message}")
 
     async def _manage_file_state(
-        self, uri: str, action: str, content: str = "", language_id: str = "python"
+        self,
+        uri: str,
+        action: str,
+        content: str = "",
+        language_id: str = "python",
     ) -> None:
         """Unified file state management"""
         async with self._lock:
@@ -339,11 +343,15 @@ class PyrightLSPClient:
                     self.open_files.remove(uri)
                     self.file_versions.pop(uri, None)
                     await self._notify(
-                        "textDocument/didClose", {"textDocument": {"uri": uri}}
+                        "textDocument/didClose",
+                        {"textDocument": {"uri": uri}},
                     )
 
     async def send_did_open(
-        self, uri: str, content: str, language_id: str = "python"
+        self,
+        uri: str,
+        content: str,
+        language_id: str = "python",
     ) -> None:
         if not uri or not isinstance(content, str):
             raise ValueError("Invalid parameters for didOpen")
@@ -386,7 +394,8 @@ class PyrightLSPClient:
         if not uri:
             raise ValueError("URI is required for documentSymbol")
         return await self._request(
-            "textDocument/documentSymbol", {"textDocument": {"uri": uri}}
+            "textDocument/documentSymbol",
+            {"textDocument": {"uri": uri}},
         )
 
     async def shutdown(self) -> None:
@@ -431,7 +440,8 @@ class PyrightLSPClient:
         if self._tasks:
             try:
                 await asyncio.wait_for(
-                    asyncio.gather(*self._tasks, return_exceptions=True), timeout=5.0
+                    asyncio.gather(*self._tasks, return_exceptions=True),
+                    timeout=5.0,
                 )
             except asyncio.TimeoutError:
                 logger.warning("Some tasks did not complete within timeout")
@@ -495,7 +505,8 @@ def extract_symbol_code(sym: Dict[str, Any], content: str, strip: bool = False) 
 
 
 def extract_inheritance_relations(
-    content: str, symbols: List[Dict[str, Any]]
+    content: str,
+    symbols: List[Dict[str, Any]],
 ) -> Dict[str, str]:
     try:
         lines = content.splitlines()
@@ -536,7 +547,9 @@ def extract_inheritance_relations(
 
 
 def find_enclosing_function(
-    symbols: List[Dict[str, Any]], line: int, character: int
+    symbols: List[Dict[str, Any]],
+    line: int,
+    character: int,
 ) -> Optional[str]:
     def _search_symbols(syms: List[Dict[str, Any]]) -> Optional[str]:
         result = None
@@ -571,7 +584,9 @@ def _should_process_file(path_obj: Path) -> bool:
 
 
 async def _handle_file_change(
-    client: PyrightLSPClient, change_type, file_path: Path
+    client: PyrightLSPClient,
+    change_type,
+    file_path: Path,
 ) -> None:
     try:
         uri = path_to_file_uri(str(file_path))
@@ -606,7 +621,7 @@ async def watch_and_sync(client: PyrightLSPClient, root_path: Path) -> None:
             for change_type, path_obj in changes:
                 if client._shutdown_event.is_set():
                     break
-                path_obj = Path(path_obj)
+                path_obj = Path(path_obj)  # noqa: PLW2901
                 if _should_process_file(path_obj):
                     await _handle_file_change(client, change_type, path_obj)
     except Exception as e:
@@ -615,7 +630,7 @@ async def watch_and_sync(client: PyrightLSPClient, root_path: Path) -> None:
 
 
 async def main() -> None:
-    root_path = Path().resolve()
+    root_path = Path.cwd()
     logger.remove()
     logger.add(sys.stderr, level="INFO", format="{time} | {level} | {message}")
 

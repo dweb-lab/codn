@@ -473,7 +473,7 @@ class TestEdgeCasesAndIntegration:
                     f"        print('Method {i}')  # Line for class {i}",
                     f"        return {i}",
                     "",
-                ]
+                ],
             )
 
         content = "\n".join(lines)

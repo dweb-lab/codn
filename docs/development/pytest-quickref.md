@@ -128,7 +128,7 @@ def test_with_fixture(sample_data):
 def test_with_mock(mocker):
     mock_func = mocker.patch('module.function')
     mock_func.return_value = "mocked"
-    
+
     result = call_function()
     assert result == "mocked"
 ```

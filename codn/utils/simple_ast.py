@@ -2,7 +2,13 @@ import ast
 from typing import Dict, List, Optional, Tuple, Union
 
 
-def find_enclosing_function(content: str, line: int, character: int) -> Optional[str]:
+try:
+    import asttokens  # type: ignore[import-untyped]
+except ImportError:
+    asttokens = None
+
+
+def find_enclosing_function(content: str, line: int, _character: int) -> Optional[str]:
     """
     Find the name of the function or method that contains the given position.
 
@@ -20,12 +26,8 @@ def find_enclosing_function(content: str, line: int, character: int) -> Optional
         return None
 
     # Try to add end_lineno information if asttokens is available
-    try:
-        import asttokens  # type: ignore
-
+    if asttokens is not None:
         asttokens.ASTTokens(content, tree=tree)
-    except ImportError:
-        pass
 
     enclosing_functions: List[str] = []
 
@@ -33,7 +35,8 @@ def find_enclosing_function(content: str, line: int, character: int) -> Optional
         """Visitor to find functions containing the target line."""
 
         def _check_function_node(
-            self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef]
+            self,
+            node: Union[ast.FunctionDef, ast.AsyncFunctionDef],
         ) -> None:
             """Check if a function node contains the target line."""
             start_line = getattr(node, "lineno", None)
@@ -57,7 +60,8 @@ def find_enclosing_function(content: str, line: int, character: int) -> Optional
             self.generic_visit(node)
 
         def _estimate_function_end(
-            self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef]
+            self,
+            node: Union[ast.FunctionDef, ast.AsyncFunctionDef],
         ) -> int:
             """Estimate the end line of a function when end_lineno is not available."""
             if not node.body:
@@ -193,14 +197,14 @@ def extract_function_signatures(
 
     class FunctionVisitor(ast.NodeVisitor):
         def _extract_function_info(
-            self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef]
+            self,
+            node: Union[ast.FunctionDef, ast.AsyncFunctionDef],
         ) -> None:
             args = []
             defaults = []
 
             # Extract argument names
-            for arg in node.args.args:
-                args.append(arg.arg)
+            args.extend(arg.arg for arg in node.args.args)
 
             # Extract default values
             for default in node.args.defaults:
@@ -297,7 +301,8 @@ def find_unused_imports(content: str) -> List[Tuple[str, int]]:
 
 
 def extract_class_methods(
-    content: str, class_name: Optional[str] = None
+    content: str,
+    class_name: Optional[str] = None,
 ) -> List[Dict[str, Union[str, int, List[str]]]]:
     """
     Extract methods from classes in Python source code.

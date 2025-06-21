@@ -22,7 +22,7 @@ Thank you for your interest in contributing to codn! This guide will help you ge
    ```bash
    # Using uv (recommended)
    uv sync --group dev
-   
+
    # Or using pip
    pip install -e ".[dev]"
    ```
@@ -31,7 +31,7 @@ Thank you for your interest in contributing to codn! This guide will help you ge
    ```bash
    # Run tests
    python -m pytest
-   
+
    # Check CLI
    python -m codn.cli --help
    ```
@@ -199,10 +199,10 @@ test: add edge cases for inheritance extraction
    def test_extract_function_signatures():
        # Arrange
        content = "def hello(name: str) -> str: return f'Hello {name}'"
-       
+
        # Act
        signatures = extract_function_signatures(content)
-       
+
        # Assert
        assert len(signatures) == 1
        assert signatures[0]['name'] == 'hello'

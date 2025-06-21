@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Annotated
 
 import typer
 
@@ -10,8 +11,15 @@ app = typer.Typer(help="Git related commands")
 
 @app.command()
 def check(
-    path: str = typer.Argument(".", help="Path to the Git repository"),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
+    path: Annotated[
+        str,
+        typer.Argument(help="Path to the Git repository"),
+    ] = ".",
+    *,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Show detailed output"),
+    ] = False,
 ) -> None:
     """
     Check if the given path is a valid and healthy Git repository.
@@ -39,7 +47,8 @@ def check(
             typer.echo(f"✅ [OK] '{full_path}' is a valid Git repository.")
         else:
             typer.echo(
-                f"❌ [FAIL] '{full_path}' is NOT a valid Git repository.", err=True
+                f"❌ [FAIL] '{full_path}' is NOT a valid Git repository.",
+                err=True,
             )
             raise typer.Exit(code=1)
 

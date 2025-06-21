@@ -150,7 +150,7 @@ def demonstrate_class_analysis():
         decorator_str = " ".join(decorators)
         print(
             f"  {method['class_name']}.{method['method_name']} "
-            f"(line {method['line']}) {decorator_str}"
+            f"(line {method['line']}) {decorator_str}",
         )
 
     # Extract inheritance relationships

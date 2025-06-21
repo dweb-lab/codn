@@ -159,15 +159,15 @@ code = """
 class Calculator:
     def __init__(self):
         pass
-    
+
     @staticmethod
     def add(a, b):
         return a + b
-    
+
     @classmethod
     def create(cls):
         return cls()
-    
+
     @property
     def version(self):
         return "1.0"

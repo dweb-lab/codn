@@ -176,7 +176,7 @@ async def mock_lsp_client(lsp_config: LSPConfig) -> AsyncGenerator[Mock, None]:
 
 @pytest.fixture
 async def real_lsp_client(
-    temp_dir: Path, lsp_config: LSPConfig
+    temp_dir: Path, lsp_config: LSPConfig,
 ) -> AsyncGenerator[PyrightLSPClient, None]:
     """Create a real LSP client for integration tests."""
     import shutil
@@ -184,7 +184,7 @@ async def real_lsp_client(
     # Check if pyright-langserver is available
     if not shutil.which("pyright-langserver"):
         pytest.skip(
-            "pyright-langserver not found. Install with: npm install -g pyright"
+            "pyright-langserver not found. Install with: npm install -g pyright",
         )
 
     root_uri = path_to_file_uri(str(temp_dir))

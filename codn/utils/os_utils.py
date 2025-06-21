@@ -87,10 +87,11 @@ def list_all_python_files_sync(
     root_path = Path(root).resolve()
     gitignore_spec = load_gitignore(root_path)
 
-    python_files = []
-    for py_file in root_path.rglob("*.py"):
-        if not should_ignore(py_file, root_path, ignored_dirs, gitignore_spec):
-            python_files.append(py_file)
+    python_files = [
+        py_file
+        for py_file in root_path.rglob("*.py")
+        if not should_ignore(py_file, root_path, ignored_dirs, gitignore_spec)
+    ]
 
     return python_files
 

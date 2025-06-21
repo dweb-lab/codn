@@ -1,10 +1,18 @@
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
 import typer
 from rich.console import Console
 
+from codn import __version__
 from codn.cli_commands import analyze_cli, git_cli
+from codn.cli_commands.analyze_cli import (
+    analyze_functions,
+    analyze_project,
+    find_references,
+    find_unused_imports_cmd,
+)
+
 
 console = Console()
 
@@ -30,92 +38,83 @@ app.add_typer(
 # 添加简化的直接命令
 @app.command("unused")
 def unused_imports(
-    path: Optional[Path] = typer.Argument(
-        None,
-        help="Path to analyze (default: current directory)",
-    ),
-    include_tests: bool = typer.Option(
-        False,
-        "--include-tests",
-        help="Include test files in analysis",
-    ),
-    fix: bool = typer.Option(
-        False,
-        "--fix",
-        help="Automatically remove unused imports (experimental)",
-    ),
+    path: Annotated[
+        Optional[Path],
+        typer.Argument(help="Path to analyze (default: current directory)"),
+    ] = None,
+    *,
+    include_tests: Annotated[
+        bool,
+        typer.Option("--include-tests", help="Include test files in analysis"),
+    ] = False,
+    fix: Annotated[
+        bool,
+        typer.Option(
+            "--fix",
+            help="Automatically remove unused imports (experimental)",
+        ),
+    ] = False,
 ) -> None:
     """🧹 Find unused imports in Python files."""
-    from .cli_commands.analyze_cli import find_unused_imports_cmd
-
     find_unused_imports_cmd(path, include_tests, fix)
 
 
 @app.command("refs")
 def find_refs(
-    function_name: str = typer.Argument(
-        ...,
-        help="Function name to find references for",
-    ),
-    path: Optional[Path] = typer.Argument(
-        None,
-        help="Path to search (default: current directory)",
-    ),
-    include_tests: bool = typer.Option(
-        False,
-        "--include-tests",
-        help="Include test files in search",
-    ),
+    function_name: Annotated[
+        str,
+        typer.Argument(help="Function name to find references for"),
+    ],
+    path: Annotated[
+        Optional[Path],
+        typer.Argument(help="Path to search (default: current directory)"),
+    ] = None,
+    *,
+    include_tests: Annotated[
+        bool,
+        typer.Option("--include-tests", help="Include test files in search"),
+    ] = False,
 ) -> None:
     """🔍 Find all references to a function."""
-    from .cli_commands.analyze_cli import find_references
-
     find_references(function_name, path, include_tests)
 
 
 @app.command("funcs")
 def functions(
-    path: Optional[Path] = typer.Argument(
-        None,
-        help="Path to analyze (default: current directory)",
-    ),
-    class_name: Optional[str] = typer.Option(
-        None,
-        "--class",
-        help="Filter by class name",
-    ),
-    show_signatures: bool = typer.Option(
-        False,
-        "--signatures",
-        help="Show function signatures",
-    ),
-    include_tests: bool = typer.Option(
-        False,
-        "--include-tests",
-        help="Include test files",
-    ),
+    path: Annotated[
+        Optional[Path],
+        typer.Argument(help="Path to analyze (default: current directory)"),
+    ] = None,
+    *,
+    class_name: Annotated[
+        Optional[str],
+        typer.Option("--class", help="Filter by class name"),
+    ] = None,
+    show_signatures: Annotated[
+        bool,
+        typer.Option("--signatures", help="Show function signatures"),
+    ] = False,
+    include_tests: Annotated[
+        bool,
+        typer.Option("--include-tests", help="Include test files"),
+    ] = False,
 ) -> None:
     """📝 List all functions and methods."""
-    from .cli_commands.analyze_cli import analyze_functions
-
     analyze_functions(path, class_name, show_signatures, include_tests)
 
 
 @app.callback()
 def main(
     ctx: typer.Context,
-    version: bool = typer.Option(
-        False,
-        "--version",
-        "-V",
-        help="Show version information",
-    ),
-    verbose: bool = typer.Option(
-        False,
-        "--verbose",
-        "-v",
-        help="Show detailed output",
-    ),
+    *,
+    version: Annotated[
+        bool,
+        typer.Option("--version", "-V", help="Show version information"),
+    ] = False,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Show detailed output"),
+    ] = False,
 ) -> None:
     """
     🔍 Codn - Fast Python code analysis.
@@ -127,17 +126,13 @@ def main(
       codn funcs        - List all functions
     """
     if version:
-        from codn import __version__
-
         console.print(
-            f"[bold blue]codn[/bold blue] version [green]{__version__}[/green]"
+            f"[bold blue]codn[/bold blue] version [green]{__version__}[/green]",
         )
         raise typer.Exit
 
     # 如果没有子命令, 默认执行项目分析
     if ctx.invoked_subcommand is None:
-        from .cli_commands.analyze_cli import analyze_project
-
         analyze_project(Path.cwd(), False, verbose)
 
 

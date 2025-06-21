@@ -47,7 +47,7 @@ python_functions = ["test_*"]
 # 基本选项
 addopts = [
     "--strict-markers",
-    "--strict-config", 
+    "--strict-config",
     "--verbose",
     "--tb=short",
 ]
@@ -58,7 +58,7 @@ asyncio_mode = "auto"
 # 测试标记
 markers = [
     "slow: marks tests as slow",
-    "integration: marks tests as integration tests", 
+    "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
     "async: marks tests as async tests",
     "network: marks tests that require network access",
@@ -72,9 +72,9 @@ markers = [
 source = ["codn"]
 omit = [
     "*/tests/*",
-    "*/test_*", 
+    "*/test_*",
     "*/__pycache__/*",
-    "*/venv/*", 
+    "*/venv/*",
     "*/.venv/*",
     "setup.py",
 ]
@@ -83,7 +83,7 @@ omit = [
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",
-    "raise AssertionError", 
+    "raise AssertionError",
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
@@ -146,15 +146,15 @@ uv run pytest -n 4                      # 使用 4 个进程
 ```python
 class TestUserService:
     """用户服务相关测试"""
-    
+
     @pytest.fixture
     def user_data(self):
         return {"name": "test", "email": "test@example.com"}
-    
+
     def test_create_user(self, user_data):
         user = UserService.create(user_data)
         assert user.name == "test"
-    
+
     def test_invalid_email(self):
         with pytest.raises(ValueError, match="Invalid email"):
             UserService.create({"email": "invalid"})
@@ -177,7 +177,7 @@ async def test_async_exception():
 ```python
 @pytest.mark.parametrize("input_val,expected", [
     (0, 0),
-    (1, 1), 
+    (1, 1),
     (2, 4),
     (3, 9),
 ])
@@ -210,7 +210,7 @@ def test_external_api(mocker):
     # Mock 外部依赖
     mock_response = mocker.patch('requests.get')
     mock_response.return_value.json.return_value = {"status": "ok"}
-    
+
     result = api_client.get_status()
     assert result == {"status": "ok"}
 
@@ -237,7 +237,7 @@ def test_pure_function():
     assert add(2, 3) == 5
 
 @pytest.mark.integration
-@pytest.mark.slow  
+@pytest.mark.slow
 def test_database_integration():
     # 复杂的数据库集成测试
     pass
@@ -293,22 +293,22 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install uv
       uses: astral-sh/setup-uv@v3
-    
+
     - name: Set up Python
       run: uv python install ${{ matrix.python-version }}
-    
+
     - name: Install dependencies
       run: uv sync --group test
-    
+
     - name: Run tests
       run: uv run pytest --cov=codn --cov-report=xml
-    
+
     - name: Upload coverage
       uses: codecov/codecov-action@v3
       with:

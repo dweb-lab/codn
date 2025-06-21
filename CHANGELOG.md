@@ -65,7 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Core utilities for Python development:
   - `simple_ast`: AST-based code analysis tools
   - `pyright_lsp_client`: Language Server Protocol client for Pyright
-  - `git_utils`: Git repository validation utilities  
+  - `git_utils`: Git repository validation utilities
   - `os_utils`: File system operations with gitignore support
 - Command-line interface with `typer`
 - Comprehensive test suite with pytest

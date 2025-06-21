@@ -244,7 +244,7 @@ Codn aims to be the Swiss Army knife for developers, providing powerful yet simp
 
 ### 🔍 Code Archaeology
 - Historical analysis of deleted code
-- Evolution of coding patterns over time  
+- Evolution of coding patterns over time
 - Impact analysis of major changes
 - Code fossil discovery (obsolete patterns)
 
@@ -309,5 +309,5 @@ Codn aims to be the Swiss Army knife for developers, providing powerful yet simp
 
 *This roadmap is a living document. Join our discussions and help us prioritize the most impactful features for the developer community.*
 
-**Last Updated**: June 2025  
+**Last Updated**: June 2025
 **Next Review**: September 2025

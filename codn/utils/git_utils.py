@@ -1,3 +1,4 @@
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Union
@@ -19,21 +20,29 @@ def is_valid_git_repo(path: Union[str, Path]) -> bool:
     if not git_dir.exists():
         return False
 
+    # Check if git is available
+    git_executable = shutil.which("git")
+    if git_executable is None:
+        print("Git command not found")
+        return False
+
     try:
         # Check if we can access the current HEAD commit
         subprocess.run(
-            ["git", "-C", str(repo_path), "rev-parse", "HEAD"],
+            [git_executable, "-C", str(repo_path), "rev-parse", "HEAD"],
             check=True,
             capture_output=True,
             text=True,
+            timeout=10,
         )
 
         # Check for repository corruption
         result = subprocess.run(
-            ["git", "-C", str(repo_path), "fsck"],
+            [git_executable, "-C", str(repo_path), "fsck"],
             check=True,
             capture_output=True,
             text=True,
+            timeout=30,
         )
 
         output_lower = result.stdout.lower()
@@ -45,6 +54,9 @@ def is_valid_git_repo(path: Union[str, Path]) -> bool:
 
     except subprocess.CalledProcessError as e:
         print(f"Git check failed: {e.stderr or e.stdout}")
+        return False
+    except subprocess.TimeoutExpired:
+        print("Git command timed out")
         return False
     except FileNotFoundError:
         print("Git command not found")

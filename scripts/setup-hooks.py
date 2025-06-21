@@ -23,7 +23,7 @@ def setup_proxy_env() -> dict:
 
     # Test GitHub connectivity
     test_success, _, _ = run_command_simple(
-        "curl -s --connect-timeout 5 https://api.github.com/zen"
+        "curl -s --connect-timeout 5 https://api.github.com/zen",
     )
 
     if not test_success:
@@ -61,7 +61,7 @@ def run_command_simple(cmd: str) -> tuple[bool, str, str]:
 
 
 def run_command(
-    cmd: str, capture_output: bool = True, use_proxy: bool = True
+    cmd: str, capture_output: bool = True, use_proxy: bool = True,
 ) -> tuple[bool, str, str]:
     """Run a command and return success status and output."""
     try:
@@ -135,7 +135,7 @@ def setup_pre_commit() -> bool:
         if not success:
             # Try with uv pip
             success, _, stderr = run_command(
-                "uv pip install pre-commit", use_proxy=True
+                "uv pip install pre-commit", use_proxy=True,
             )
     else:
         success, _, stderr = run_command("pip install pre-commit", use_proxy=True)
@@ -153,7 +153,7 @@ def setup_pre_commit() -> bool:
 
     # Install commit-msg hook for conventional commits
     success, _, _ = run_command(
-        "pre-commit install --hook-type commit-msg", use_proxy=True
+        "pre-commit install --hook-type commit-msg", use_proxy=True,
     )
 
     print_colored("✅ Pre-commit hooks installed successfully!", "green")
@@ -443,7 +443,7 @@ def main() -> None:
     else:
         print_colored("\n❌ Setup failed. Please check the errors above.", "red")
         print_colored(
-            "💡 If you're in China or having GitHub connectivity issues, try:", "yellow"
+            "💡 If you're in China or having GitHub connectivity issues, try:", "yellow",
         )
         print("export https_proxy=http://127.0.0.1:7890")
         print("export http_proxy=http://127.0.0.1:7890")

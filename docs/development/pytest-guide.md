@@ -106,7 +106,7 @@ def pytest_collection_modifyitems(config, items):
         # 自动标记异步测试
         if asyncio.iscoroutinefunction(item.function):
             item.add_marker("async")
-        
+
         # 根据路径自动标记
         if "integration" in str(item.fspath):
             item.add_marker("integration")
@@ -264,15 +264,15 @@ exclude_lines = [
 # ✅ 好的做法
 class TestUserService:
     """用户服务相关测试"""
-    
+
     @pytest.fixture
     def user_data(self):
         return {"name": "test", "email": "test@example.com"}
-    
+
     def test_create_user(self, user_data):
         user = UserService.create(user_data)
         assert user.name == "test"
-    
+
     def test_invalid_email(self):
         with pytest.raises(ValueError, match="Invalid email"):
             UserService.create({"email": "invalid"})
@@ -340,7 +340,7 @@ def test_external_api(mocker):
     # Mock外部依赖
     mock_response = mocker.patch('requests.get')
     mock_response.return_value.json.return_value = {"status": "ok"}
-    
+
     result = api_client.get_status()
     assert result == {"status": "ok"}
 
@@ -368,7 +368,7 @@ def sample_users():
 def test_file_processing(tmp_path):
     test_file = tmp_path / "test.txt"
     test_file.write_text("test content")
-    
+
     result = process_file(test_file)
     assert result.success
 ```
@@ -388,22 +388,22 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install uv
       uses: astral-sh/setup-uv@v3
-    
+
     - name: Set up Python ${{ matrix.python-version }}
       run: uv python install ${{ matrix.python-version }}
-    
+
     - name: Install dependencies
       run: uv sync --group test
-    
+
     - name: Run tests
       run: uv run pytest --cov=codn --cov-report=xml
-    
+
     - name: Upload coverage
       uses: codecov/codecov-action@v3
       with:

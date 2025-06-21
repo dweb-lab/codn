@@ -15,7 +15,7 @@ def run_command(cmd, capture_output=True, text=True):
     """Run a command and return the result."""
     try:
         result = subprocess.run(
-            cmd, check=False, shell=True, capture_output=capture_output, text=text
+            cmd, check=False, shell=True, capture_output=capture_output, text=text,
         )
         return result.returncode == 0, result.stdout, result.stderr
     except Exception as e:
@@ -127,11 +127,11 @@ def main():
         elif pip_available:
             if not in_venv:
                 print_colored(
-                    "   ⚠️  Consider creating a virtual environment:", "yellow"
+                    "   ⚠️  Consider creating a virtual environment:", "yellow",
                 )
                 print("   python -m venv venv")
                 print(
-                    "   source venv/bin/activate  # On Windows: venv\\Scripts\\activate"
+                    "   source venv/bin/activate  # On Windows: venv\\Scripts\\activate",
                 )
             print_colored("   🚀 Use: pip install codn", "green")
         else:

@@ -104,6 +104,48 @@ lint:
 	@command -v uv >/dev/null 2>&1 && uv run mypy codn --ignore-missing-imports || mypy codn --ignore-missing-imports
 	@echo "✅ Linting complete!"
 
+ruff-check:
+	@echo "🔍 Running ruff checks..."
+	@echo "📝 Running ruff lint..."
+	@if command -v uv >/dev/null 2>&1; then \
+		if uv run ruff check . --quiet; then \
+			echo "✅ Ruff lint passed"; \
+		else \
+			echo "❌ Ruff lint failed"; \
+			echo "💡 To see detailed errors, run: ruff check ."; \
+			echo "💡 To auto-fix some issues, run: ruff check . --fix"; \
+			exit 1; \
+		fi; \
+	else \
+		if ruff check . --quiet; then \
+			echo "✅ Ruff lint passed"; \
+		else \
+			echo "❌ Ruff lint failed"; \
+			echo "💡 To see detailed errors, run: ruff check ."; \
+			echo "💡 To auto-fix some issues, run: ruff check . --fix"; \
+			exit 1; \
+		fi; \
+	fi
+	@echo "🎨 Checking ruff format..."
+	@if command -v uv >/dev/null 2>&1; then \
+		if uv run ruff format . --check --quiet; then \
+			echo "✅ Ruff format check passed"; \
+		else \
+			echo "❌ Code needs formatting"; \
+			echo "💡 To format the code, run: ruff format ."; \
+			exit 1; \
+		fi; \
+	else \
+		if ruff format . --check --quiet; then \
+			echo "✅ Ruff format check passed"; \
+		else \
+			echo "❌ Code needs formatting"; \
+			echo "💡 To format the code, run: ruff format ."; \
+			exit 1; \
+		fi; \
+	fi
+	@echo "🎉 All ruff checks passed! Ready to commit."
+
 format:
 	@echo "Formatting code with ruff..."
 	@command -v uv >/dev/null 2>&1 && uv run ruff format . || ruff format .

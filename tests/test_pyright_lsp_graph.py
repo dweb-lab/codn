@@ -86,7 +86,7 @@ async def main():
                 raw_def_char = raw_loc["character"]
 
                 raw_func_name = find_enclosing_function(
-                    raw_symbols, raw_def_line, raw_def_char
+                    raw_symbols, raw_def_line, raw_def_char,
                 )
                 if raw_func_name:
                     print(f"---{raw_func_name}")
@@ -97,7 +97,7 @@ async def main():
                 # print(f'uri {uri} func_line {raw_def_line} func_char {raw_def_char}')
                 # assert func_line == raw_def_line, f"Expected line {func_line}, got {raw_def_line}"
                 ref_result = await client.send_references(
-                    uri, line=raw_def_line, character=raw_def_char
+                    uri, line=raw_def_line, character=raw_def_char,
                 )
                 if not ref_result:
                     # print(references)
@@ -113,7 +113,7 @@ async def main():
                         _symbols = await client.send_document_symbol(uri)
                         func_name = find_enclosing_function(_symbols, line, character)
                         print(
-                            f"  {i:02d}. {uri} @ Line {line + 1}, Char {character + 1}, Func {func_name}"
+                            f"  {i:02d}. {uri} @ Line {line + 1}, Char {character + 1}, Func {func_name}",
                         )  # LSP line/char 是从0开始的
                         raw_def = await client.send_definition(uri, line, character)
                         # assert len(raw_def) == 1, f"Expected 1 definition, got {len(raw_def)}"
