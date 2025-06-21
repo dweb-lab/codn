@@ -63,59 +63,106 @@ def show_welcome():
     )
     console.print(welcome_panel)
 
-    # Quick start commands
-    console.print("\n[bold cyan]🚀 Quick Start Commands:[/bold cyan]")
+    # Most popular commands
+    console.print("\n[bold cyan]🌟 Most Popular Commands:[/bold cyan]")
 
-    commands_table = Table(show_header=True, header_style="bold magenta")
-    commands_table.add_column("Command", style="cyan", width=30)
-    commands_table.add_column("Description", style="white")
+    popular_table = Table(show_header=True, header_style="bold magenta")
+    popular_table.add_column("Command", style="cyan", width=30)
+    popular_table.add_column("Description", style="white")
 
-    commands_table.add_row(
+    popular_table.add_row(
         "codn analyze project",
-        "📊 Get comprehensive project statistics"
+        "📊 Get comprehensive project overview & quality score"
     )
-    commands_table.add_row(
-        "codn analyze find-refs <function>",
-        "🔍 Find where a function is used"
-    )
-    commands_table.add_row(
+    popular_table.add_row(
         "codn analyze unused-imports",
-        "🧹 Detect unused import statements"
+        "🧹 Find and clean up unused imports"
     )
-    commands_table.add_row(
-        "codn analyze functions",
-        "📝 List all functions and methods"
-    )
-    commands_table.add_row(
-        "codn git check",
-        "🔧 Validate Git repository health"
+    popular_table.add_row(
+        "codn analyze find-refs <function>",
+        "🔍 Find where a function is referenced"
     )
 
-    console.print(commands_table)
+    console.print(popular_table)
 
-    # Examples
-    console.print("\n[bold cyan]💡 Usage Examples:[/bold cyan]")
+    # All available commands
+    console.print("\n[bold cyan]📋 All Available Commands:[/bold cyan]")
+
+    all_commands_table = Table(show_header=True, header_style="bold blue")
+    all_commands_table.add_column("Category", style="bold cyan", width=15)
+    all_commands_table.add_column("Command", style="green", width=25)
+    all_commands_table.add_column("Description", style="white")
+
+    all_commands_table.add_row(
+        "Analysis", "analyze project", "Project statistics and quality metrics"
+    )
+    all_commands_table.add_row(
+        "", "analyze unused-imports", "Detect unused import statements"
+    )
+    all_commands_table.add_row(
+        "", "analyze functions", "List all functions and methods"
+    )
+    all_commands_table.add_row(
+        "", "analyze find-refs", "Find function references"
+    )
+    all_commands_table.add_row(
+        "Git", "git check", "Validate repository health"
+    )
+
+    console.print(all_commands_table)
+
+    # Quick start guide
+    console.print("\n[bold cyan]🚀 Quick Start Guide:[/bold cyan]")
+
+    start_panel = Panel(
+        "[bold white]New to codn? Start here:[/bold white]\n\n"
+        "1️⃣  [green]codn analyze project[/green]        [dim]← Get overview of your codebase[/dim]\n"
+        "2️⃣  [green]codn analyze unused-imports[/green] [dim]← Clean up your imports[/dim]\n"
+        "3️⃣  [green]codn analyze functions[/green]      [dim]← Explore your functions[/dim]\n\n"
+        "[bold yellow]💡 Pro tip:[/bold yellow] Use [green]--verbose[/green] flag for detailed output!",
+        title="Getting Started",
+        border_style="green"
+    )
+    console.print(start_panel)
+
+    # Advanced examples
+    console.print("\n[bold cyan]🔧 Advanced Examples:[/bold cyan]")
     examples = [
-        "[dim]# Analyze current directory[/dim]",
-        "[green]codn analyze project[/green]",
+        "[dim]# Detailed project analysis[/dim]",
+        "[green]codn analyze project --verbose[/green]",
         "",
-        "[dim]# Find function references[/dim]",
+        "[dim]# Find function usage across codebase[/dim]",
         "[green]codn analyze find-refs my_function[/green]",
         "",
-        "[dim]# Check for code quality issues[/dim]",
-        "[green]codn analyze unused-imports[/green]"
+        "[dim]# Analyze functions with signatures[/dim]",
+        "[green]codn analyze functions --signatures[/green]"
     ]
 
     for example in examples:
         console.print(f"  {example}")
 
-    # Help footer
-    console.print(f"\n[bold cyan]📚 Get More Help:[/bold cyan]")
-    console.print("  [green]codn --help[/green]           Show detailed help")
-    console.print("  [green]codn analyze --help[/green]   Show analysis commands")
-    console.print("  [green]codn git --help[/green]       Show git commands")
+    # Help and resources
+    console.print(f"\n[bold cyan]📚 Need Help?[/bold cyan]")
+    help_info = [
+        "[green]codn --help[/green]                Show this help screen",
+        "[green]codn analyze[/green]               Show analysis tools overview",
+        "[green]codn analyze --help[/green]        Show detailed analysis help",
+        "[green]codn <command> --help[/green]      Show help for specific command"
+    ]
 
-    console.print(f"\n[dim]💫 Documentation: https://github.com/dweb-lab/codn/tree/main/docs[/dim]")
+    for info in help_info:
+        console.print(f"  {info}")
+
+    # Footer with resources
+    console.print()
+    footer_panel = Panel(
+        "[bold blue]🔗 Resources[/bold blue]\n"
+        "📖 Documentation: [link=https://github.com/dweb-lab/codn/tree/main/docs]github.com/dweb-lab/codn/docs[/link]\n"
+        "🐛 Issues: [link=https://github.com/dweb-lab/codn/issues]github.com/dweb-lab/codn/issues[/link]\n"
+        "⭐ Star us: [link=https://github.com/dweb-lab/codn]github.com/dweb-lab/codn[/link]",
+        border_style="blue"
+    )
+    console.print(footer_panel)
 
 if __name__ == "__main__":
     app()
