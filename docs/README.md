@@ -5,6 +5,7 @@ Welcome to the codn documentation! This guide will help you get the most out of 
 ## 🚀 Quick Links
 
 - **[Getting Started](#getting-started)** - Installation and basic usage
+- **[Recent Improvements](RECENT_IMPROVEMENTS.md)** - Latest enhancements and features
 - **[CLI Guide](cli-guide.md)** - Complete command reference
 - **[API Reference](api/)** - Python API documentation
 - **[Examples](examples/)** - Code examples and use cases
@@ -85,6 +86,8 @@ sigs = extract_function_signatures(code)
   - Submission process
 
 - **[Development Docs](development/)** - Technical documentation
+  - [Analyze Command Improvements](development/analyze-command-improvements.md) - UI/UX improvements
+  - [Ruff Setup Guide](development/ruff-setup.md) - Linting and formatting configuration
   - [Roadmap](development/roadmap.md) - Future plans and features
   - [Testing Guide](development/pytest-guide.md) - Comprehensive testing docs
   - [Quick Reference](development/pytest-quickref.md) - Testing quick reference
