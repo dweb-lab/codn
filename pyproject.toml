@@ -6,14 +6,10 @@ build-backend = "setuptools.build_meta"
 name = "codn"
 version = "0.1.0"
 description = "A tiny, modular library for common coding tasks."
-authors = [
-  { name="askender", email="askender43@gmail.com" }
-]
+authors = [{ name = "askender", email = "askender43@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.7"
-dependencies = [
-    "typer",
-]
+dependencies = ["typer", "watchfiles", "pathspec", "loguru"]
 license = "MIT"
 
 [tool.setuptools]
