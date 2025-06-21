@@ -70,34 +70,38 @@ repos:
       - id: check-executables-have-shebangs
         name: check that executables have shebangs
 
-  # MyPy type checking (temporarily disabled)
-  # - repo: https://github.com/pre-commit/mirrors-mypy
-  #   rev: v1.11.2
-  #   hooks:
-  #     - id: mypy
-  #       name: mypy type check
-  #       additional_dependencies:
-  #         - types-requests
-  #         - types-setuptools
-  #       args: [--ignore-missing-imports, --show-error-codes]
-  #       exclude: ^(tests/|docs/examples/)
+  # All tools using local installation to avoid GitHub downloads
+  - repo: local
+    hooks:
+      # MyPy type checking
+      - id: mypy
+        name: mypy type check
+        entry: python -m mypy
+        language: system
+        types: [python]
+        args: [--ignore-missing-imports, --show-error-codes, codn/]
+        pass_filenames: false
+        exclude: ^(tests/|docs/examples/)
 
-  # Security checks with bandit (temporarily disabled)
-  # - repo: https://github.com/PyCQA/bandit
-  #   rev: 1.7.10
-  #   hooks:
-  #     - id: bandit
-  #       name: bandit security check
-  #       args: [-r, -x, tests/]
-  #       exclude: ^tests/
+      # Security checks with bandit
+      - id: bandit
+        name: bandit security check
+        entry: python -m bandit
+        language: system
+        types: [python]
+        args: [-r, codn/]
+        pass_filenames: false
+        exclude: ^tests/
 
-  # Docstring formatting (disabled due to compatibility issues)
-  # - repo: https://github.com/PyCQA/docformatter
-  #   rev: v1.7.5
-  #   hooks:
-  #     - id: docformatter
-  #       name: docformatter
-  #       args: [--in-place, --wrap-summaries=88, --wrap-descriptions=88]
+      # Docstring formatting
+      - id: docformatter
+        name: docformatter
+        entry: python -m docformatter
+        language: system
+        types: [python]
+        args: [--in-place, --wrap-summaries=88, --wrap-descriptions=88]
+        files: ^codn/.*\.py$
+        pass_filenames: true
 
 # Pre-commit configuration
 default_language_version:

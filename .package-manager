@@ -1,0 +1,20 @@
+# Package Manager Configuration
+# This file serves as a reminder of which package manager this project uses
+
+PACKAGE_MANAGER=uv
+PYTHON_VERSION=3.12
+
+# Commands to use:
+# - Install dependencies: uv pip install -e ".[dev]"
+# - Install packages: uv pip install <package>
+# - Run python: uv run python <script>
+# - Sync dependencies: uv pip sync requirements.txt
+
+# DO NOT USE:
+# - pip install (uses system pip)
+# - Use "uv pip install" instead
+
+# Environment setup:
+# - uv venv (create virtual environment)
+# - source .venv/bin/activate (activate environment)
+# - uv pip install -e ".[dev]" (install project in dev mode)

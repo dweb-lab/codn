@@ -31,6 +31,8 @@ dev = [
     "black>=22.0",
     "ruff>=0.1.0",
     "mypy>=1.0",
+    "bandit>=1.7.0",
+    "docformatter>=1.7.0",
     "pre-commit>=3.0",
     "build>=1.2.2.post1",
     "twine>=6.1.0",
@@ -39,6 +41,8 @@ lint = [
     "black>=22.0",
     "ruff>=0.1.0",
     "mypy>=1.0",
+    "bandit>=1.7.0",
+    "docformatter>=1.7.0",
 ]
 
 [tool.setuptools.packages.find]
