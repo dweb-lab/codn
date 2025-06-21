@@ -1,0 +1,11 @@
+#!/bin/bash
+# This project uses uv pip (faster than system pip)
+#
+# To use 'pip' naturally, add this alias to your shell:
+#   echo "alias pip='uv pip'" >> ~/.zshrc
+#   source ~/.zshrc
+#
+# Or use directly: ./pip <command>
+
+command -v uv >/dev/null || { echo "Install uv first: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
+exec uv pip "$@"
