@@ -56,7 +56,7 @@ def unused_imports(
     ] = False,
 ) -> None:
     """🧹 Find unused imports in Python files."""
-    find_unused_imports_cmd(path, include_tests, fix)
+    find_unused_imports_cmd(path, include_tests=include_tests, fix=fix)
 
 
 @app.command("refs")
@@ -76,7 +76,7 @@ def find_refs(
     ] = False,
 ) -> None:
     """🔍 Find all references to a function."""
-    find_references(function_name, path, include_tests)
+    find_references(function_name, path, include_tests=include_tests)
 
 
 @app.command("funcs")
@@ -100,7 +100,12 @@ def functions(
     ] = False,
 ) -> None:
     """📝 List all functions and methods."""
-    analyze_functions(path, class_name, show_signatures, include_tests)
+    analyze_functions(
+        path,
+        class_name=class_name,
+        show_signatures=show_signatures,
+        include_tests=include_tests,
+    )
 
 
 @app.callback()
@@ -133,7 +138,7 @@ def main(
 
     # 如果没有子命令, 默认执行项目分析
     if ctx.invoked_subcommand is None:
-        analyze_project(Path.cwd(), False, verbose)
+        analyze_project(Path.cwd(), include_tests=False, verbose=verbose)
 
 
 if __name__ == "__main__":
