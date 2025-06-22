@@ -10,6 +10,7 @@ Welcome to the codn documentation! This guide will help you get the most out of 
 - **[API Reference](api/)** - Python API documentation
 - **[Examples](examples/)** - Code examples and use cases
 - **[Development](development/)** - Contributing and development setup
+- **[Quick Development Guide](development/QUICK-GUIDE.md)** - Essential commands for developers
 
 ## 📚 What is codn?
 
@@ -86,6 +87,7 @@ sigs = extract_function_signatures(code)
   - Submission process
 
 - **[Development Docs](development/)** - Technical documentation
+  - [Quick Development Guide](development/QUICK-GUIDE.md) - Essential commands and workflows
   - [Analyze Command Improvements](development/analyze-command-improvements.md) - UI/UX improvements
   - [Ruff Setup Guide](development/ruff-setup.md) - Linting and formatting configuration
   - [Roadmap](development/roadmap.md) - Future plans and features

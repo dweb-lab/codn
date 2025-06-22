@@ -200,7 +200,7 @@ pip install codn
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [development documentation](docs/development/) for details.
+We welcome contributions! Please see our [development documentation](docs/development/) and [quick development guide](docs/development/QUICK-GUIDE.md) for details.
 
 ## 📄 License
 
