@@ -68,12 +68,14 @@ def find_enclosing_function(content: str, line: int, _character: int) -> Optiona
             # Find the maximum line number among all statements in the function body
             max_line = getattr(node, "lineno", 1)
             for stmt in node.body:
-                if hasattr(stmt, "lineno") and stmt.lineno:
-                    max_line = max(max_line, stmt.lineno)
+                stmt_lineno = getattr(stmt, "lineno", None)
+                if stmt_lineno:
+                    max_line = max(max_line, stmt_lineno)
                 # Also check nested nodes within each statement
                 for child in ast.walk(stmt):
-                    if hasattr(child, "lineno") and child.lineno:
-                        max_line = max(max_line, child.lineno)
+                    child_lineno = getattr(child, "lineno", None)
+                    if child_lineno:
+                        max_line = max(max_line, child_lineno)
 
             return max_line - 1  # Convert to 0-based
 
