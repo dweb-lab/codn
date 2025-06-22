@@ -24,7 +24,6 @@ from .utils.simple_ast import (
     find_unused_imports,
 )
 
-
 __all__ = [
     "__author__",
     "__email__",

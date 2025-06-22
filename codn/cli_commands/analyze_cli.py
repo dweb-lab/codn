@@ -19,7 +19,6 @@ from ..utils.simple_ast import (
     find_unused_imports,
 )
 
-
 app = typer.Typer(help="Code analysis commands", invoke_without_command=True)
 console = Console()
 

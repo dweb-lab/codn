@@ -1,7 +1,6 @@
 import ast
 from typing import Dict, List, Optional, Tuple, Union
 
-
 try:
     import asttokens  # type: ignore[import-untyped]
 except ImportError:

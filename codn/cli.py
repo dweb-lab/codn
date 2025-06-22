@@ -13,7 +13,6 @@ from codn.cli_commands.analyze_cli import (
     find_unused_imports_cmd,
 )
 
-
 console = Console()
 
 app = typer.Typer(

@@ -3,7 +3,6 @@ from typing import AsyncGenerator, Optional, Set, Union
 
 import pathspec
 
-
 # Common directories to skip during file traversal
 DEFAULT_SKIP_DIRS = {
     ".git",

@@ -5,7 +5,6 @@ import typer
 
 from codn.utils import git_utils
 
-
 app = typer.Typer(help="Git related commands")
 
 

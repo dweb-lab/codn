@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional, Set
 from loguru import logger
 from watchfiles import awatch
 
-
 PYRIGHT_COMMAND = ["pyright-langserver", "--stdio"]
 DEFAULT_TIMEOUT = 30
 BUFFER_SIZE = 8192
