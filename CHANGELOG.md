@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2025-06-22
+
+### Changed
+- **Project Structure Refactoring**:
+  - Moved `install.py` to `scripts/` directory for better organization
+  - Reorganized documentation structure with dedicated `docs/` directory
+  - Simplified development documentation and moved to `docs/development`
+  - Restructured Makefile linting targets for better clarity
+
+- **Code Quality Improvements**:
+  - Comprehensive code formatting with ruff
+  - Removed overly complex `ruff.toml` configuration
+  - Fixed import sorting and linting issues throughout codebase
+  - Enhanced pre-commit hooks for faster ruff execution
+  - Optimized pre-commit configuration to use local tools
+
+- **Build and Development Tools**:
+  - Added pip wrapper to use `uv pip` instead of system pip
+  - Updated `uv.lock` with pre-commit dependencies
+  - Improved package manager support and configuration
+  - Enhanced clean commands with detailed documentation
+
+### Removed
+- Removed redundant and unused files:
+  - `run_tests.py` script (functionality moved to Makefile)
+  - `quickstart.sh` script (superseded by better tooling)
+  - `.package-manager`, `scripts/setup-hooks.py`, `scripts/setup-proxy.sh`
+  - Simplified and relocated `check-ruff.sh`
+
+### Fixed
+- Fixed script paths in `install-dev-tools.sh`
+- Corrected function calls to use keyword arguments after ruff fixes
+- Resolved all ruff linting issues for consistent code quality
+- Fixed 'codn analyze' missing command errors with user-friendly guidance
+
+### Added
+- Comprehensive Git hooks and code quality assurance system
+- Friendly welcome interface for CLI commands
+- Better user guidance and error messages
+
 ## [0.1.2] - 2025-06-21
 
 ### Added
@@ -81,7 +121,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - LSP client for static analysis integration
 - Cross-platform compatibility
 
-[Unreleased]: https://github.com/dweb-lab/codn/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/dweb-lab/codn/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/dweb-lab/codn/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/dweb-lab/codn/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/dweb-lab/codn/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/dweb-lab/codn/releases/tag/v0.1.0
