@@ -477,7 +477,8 @@ class TestPyrightLSPClientIntegration:
             # Should handle errors gracefully
             symbols = await client.send_document_symbol(uri)
             assert symbols is None or isinstance(
-                symbols, list,
+                symbols,
+                list,
             )  # May be empty for invalid syntax
         except Exception as e:
             pytest.skip(f"LSP operation failed: {e}")

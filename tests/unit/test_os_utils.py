@@ -346,7 +346,8 @@ class TestListAllPythonFiles:
         # Test with custom ignored dirs
         files = []
         async for py_file in list_all_python_files(
-            tmp_path, ignored_dirs={"custom_ignored"},
+            tmp_path,
+            ignored_dirs={"custom_ignored"},
         ):
             files.append(py_file)
 

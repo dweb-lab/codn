@@ -176,7 +176,8 @@ async def mock_lsp_client(lsp_config: LSPConfig) -> AsyncGenerator[Mock, None]:
 
 @pytest.fixture
 async def real_lsp_client(
-    temp_dir: Path, lsp_config: LSPConfig,
+    temp_dir: Path,
+    lsp_config: LSPConfig,
 ) -> AsyncGenerator[PyrightLSPClient, None]:
     """Create a real LSP client for integration tests."""
     import shutil

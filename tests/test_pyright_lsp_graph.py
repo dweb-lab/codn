@@ -48,7 +48,7 @@ async def main():
         # print(uri)
         symbols = await client.send_document_symbol(uri)
         print("=" * 88)
-        print(f"file: {uri[len_root_uri+1:]}")
+        print(f"file: {uri[len_root_uri + 1 :]}")
         parsed = urlparse(uri)
         local_path = unquote(parsed.path)
         content = open(local_path).read()
@@ -86,7 +86,9 @@ async def main():
                 raw_def_char = raw_loc["character"]
 
                 raw_func_name = find_enclosing_function(
-                    raw_symbols, raw_def_line, raw_def_char,
+                    raw_symbols,
+                    raw_def_line,
+                    raw_def_char,
                 )
                 if raw_func_name:
                     print(f"---{raw_func_name}")
@@ -97,7 +99,9 @@ async def main():
                 # print(f'uri {uri} func_line {raw_def_line} func_char {raw_def_char}')
                 # assert func_line == raw_def_line, f"Expected line {func_line}, got {raw_def_line}"
                 ref_result = await client.send_references(
-                    uri, line=raw_def_line, character=raw_def_char,
+                    uri,
+                    line=raw_def_line,
+                    character=raw_def_char,
                 )
                 if not ref_result:
                     # print(references)
