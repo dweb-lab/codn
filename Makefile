@@ -23,7 +23,11 @@ help:
 	@echo "  test-watch     - Run tests in watch mode"
 	@echo ""
 	@echo "🔧 Code Quality:"
-	@echo "  lint           - Run linting checks"
+	@echo "  lint           - Run basic linting (ruff + mypy)"
+	@echo "  lint-all       - Run all linting checks (ruff lint/format + mypy)"
+	@echo "  ruff-check     - Run comprehensive ruff checks (lint + format)"
+	@echo "  ruff-lint      - Run ruff linting only"
+	@echo "  mypy-check     - Run mypy type checking only"
 	@echo "  format         - Format code"
 	@echo "  check          - Run all checks (lint + test)"
 	@echo "  quality        - Run full quality pipeline"
@@ -106,24 +110,8 @@ github-connectivity-test:
 
 # Development commands
 # Code Quality
-lint:
-	@echo "Running ruff linting..."
-	@command -v uv >/dev/null 2>&1 && uv run ruff check . || ruff check .
-	@echo "Running mypy type checking..."
-	@command -v uv >/dev/null 2>&1 && uv run mypy codn --ignore-missing-imports || mypy codn --ignore-missing-imports
-	@echo "✅ Linting complete!"
-
-# Fast pre-commit checks (using local ruff, no network required)
-pre-commit-fast:
-	@echo "🚀 Running fast pre-commit checks..."
-	@echo "📝 Running ruff lint..."
-	@command -v uv >/dev/null 2>&1 && uv run ruff check codn/ --fix || ruff check codn/ --fix
-	@echo "🎨 Running ruff format..."
-	@command -v uv >/dev/null 2>&1 && uv run ruff format codn/ || ruff format codn/
-	@echo "✅ Fast pre-commit checks complete!"
-
-ruff-check:
-	@echo "🔍 Running ruff checks..."
+# Individual linting components
+ruff-lint:
 	@echo "📝 Running ruff lint..."
 	@if command -v uv >/dev/null 2>&1; then \
 		if uv run ruff check . --quiet; then \
@@ -144,6 +132,8 @@ ruff-check:
 			exit 1; \
 		fi; \
 	fi
+
+ruff-format-check:
 	@echo "🎨 Checking ruff format..."
 	@if command -v uv >/dev/null 2>&1; then \
 		if uv run ruff format . --check --quiet; then \
@@ -162,7 +152,30 @@ ruff-check:
 			exit 1; \
 		fi; \
 	fi
+
+mypy-check:
+	@echo "🔍 Running mypy type checking..."
+	@command -v uv >/dev/null 2>&1 && uv run mypy codn --ignore-missing-imports || mypy codn --ignore-missing-imports
+	@echo "✅ Type checking complete!"
+
+# Composite linting targets
+ruff-check: ruff-lint ruff-format-check
 	@echo "🎉 All ruff checks passed! Ready to commit."
+
+lint: ruff-lint mypy-check
+	@echo "✅ Linting complete!"
+
+lint-all: ruff-lint ruff-format-check mypy-check
+	@echo "🎉 All linting checks passed!"
+
+# Fast pre-commit checks (using local ruff, no network required)
+pre-commit-fast:
+	@echo "🚀 Running fast pre-commit checks..."
+	@echo "📝 Running ruff lint..."
+	@command -v uv >/dev/null 2>&1 && uv run ruff check codn/ --fix || ruff check codn/ --fix
+	@echo "🎨 Running ruff format..."
+	@command -v uv >/dev/null 2>&1 && uv run ruff format codn/ || ruff format codn/
+	@echo "✅ Fast pre-commit checks complete!"
 
 format:
 	@echo "Formatting code with ruff..."
@@ -175,10 +188,10 @@ format-check:
 	@echo "Checking code formatting..."
 	@command -v uv >/dev/null 2>&1 && uv run ruff format --check . || ruff format --check .
 
-quality: format lint test-fast
+quality: format lint-all test-fast
 	@echo "🎉 Full quality pipeline passed!"
 
-check: lint test
+check: lint-all test
 
 # Setup and installation commands
 setup-help:
@@ -533,7 +546,7 @@ dev-setup: dev-install
 	@echo "✅ Development environment setup complete!"
 	@echo "Try: make demo"
 
-pre-commit: format lint test-fast
+pre-commit: format lint-all test-fast
 	@echo "✅ Pre-commit checks passed!"
 
 first-time-setup:
@@ -562,14 +575,14 @@ release-test:
 	uv run twine check dist/*
 
 # All-in-one commands
-all: format lint test
+all: format lint-all test
 	@echo "🎉 All checks passed!"
 
 quick: format lint test-fast
 	@echo "⚡ Quick checks passed!"
 
 # Pre-commit simulation (full)
-pre-commit-check: format-check lint test-fast
+pre-commit-check: format-check lint-all test-fast
 	@echo "🪝 Pre-commit checks simulation passed!"
 
 # Pre-commit simulation (fast, ruff only)
