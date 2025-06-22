@@ -196,7 +196,7 @@ check: lint-all test
 # Setup and installation commands
 setup-help:
 	@echo "🔍 Checking your environment..."
-	@python3 install.py
+	@python3 scripts/install.py
 
 # Git hooks setup
 setup-hooks:
@@ -552,7 +552,7 @@ pre-commit: format lint-all test-fast
 first-time-setup:
 	@echo "🚀 First-time setup for codn development"
 	@echo "========================================"
-	@python3 install.py
+	@python3 scripts/install.py
 	@echo ""
 	@echo "Choose your setup method:"
 	@echo "1. make install     (with uv - recommended)"

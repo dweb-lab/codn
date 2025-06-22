@@ -369,7 +369,7 @@ After installation, check out:
 **Need help?** Run our installation helper:
 ```bash
 # Installation helper
-curl -sSL https://raw.githubusercontent.com/dweb-lab/codn/main/install.py | python3
+curl -sSL https://raw.githubusercontent.com/dweb-lab/codn/main/scripts/install.py | python3
 
 # Proxy setup helper (for faster GitHub access)
 bash scripts/setup-proxy.sh

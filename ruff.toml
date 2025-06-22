@@ -22,7 +22,6 @@ extend-exclude = [
     "tests/",
     "docs/",
     "scripts/",
-    "install.py",
 ]
 
 [lint]
@@ -31,7 +30,8 @@ select = [
     # Pyflakes
     "F",
     # pycodestyle
-    "E", "W",
+    "E",
+    "W",
     # isort
     "I",
     # pep8-naming
@@ -158,7 +158,14 @@ ignore = [
     "ANN201",
     "ANN204",
     # Allow missing docstrings for now
-    "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107",
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+    "D105",
+    "D106",
+    "D107",
     # Allow relative imports
     "TID252",
     # Allow magic value comparisons
@@ -243,7 +250,7 @@ unfixable = [
     "C901",
 ]
 
-"install.py" = [
+"scripts/install.py" = [
     # Installation script can use subprocess
     "S602",
     "S603",
