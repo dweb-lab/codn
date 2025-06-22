@@ -1,7 +1,7 @@
 # Makefile for codn project
 # Provides convenient commands for testing, linting, and development
 
-.PHONY: help test test-unit test-integration test-slow test-cov test-html test-watch clean lint format install dev-install check all
+.PHONY: help test test-unit test-integration test-slow test-cov test-html test-watch clean clean-all lint format install dev-install check all
 
 # Default target
 help:
@@ -50,13 +50,7 @@ help:
 	@echo "  run            - Run codn command (uv run codn)"
 	@echo "  demo           - Run codn on current project"
 	@echo "  clean          - Clean build artifacts and cache files"
-	@echo "  clean-cache    - Clean only cache files"
-	@echo "  clean-test     - Clean only test artifacts"
-	@echo "  clean-build    - Clean only build artifacts"
-	@echo "  clean-safe     - Safe clean (preserves .venv)"
 	@echo "  clean-all      - Deep clean (including .venv)"
-	@echo "  clean-status   - Show what would be cleaned"
-	@echo "  clean-size     - Show size of files to be cleaned"
 	@echo "  all            - Format, lint, and test"
 
 # Test commands
@@ -282,234 +276,21 @@ test-install:
 
 # Clean commands
 clean:
-	@echo "🧹 Cleaning build artifacts and cache files..."
-	@echo "📦 Removing build directories..."
-	@rm -rf build/
-	@rm -rf dist/
-	@rm -rf *.egg-info/
-	@rm -rf codn.egg-info/
-	@echo "🧪 Removing test artifacts..."
-	@rm -rf .pytest_cache/
-	@rm -rf .coverage
-	@rm -rf .coverage.*
-	@rm -rf htmlcov/
-	@rm -rf reports/
-	@rm -rf junit.xml
-	@rm -rf .testmondata
-	@rm -rf test-results/
-	@rm -rf pytest.xml
-	@rm -rf mypy.xml
-	@echo "🔍 Removing cache directories..."
-	@rm -rf .mypy_cache/
-	@rm -rf .ruff_cache/
-	@rm -rf .ropeproject/
-	@rm -rf .tox/
-	@rm -rf .nox/
-	@echo "🐍 Removing Python cache files..."
+	@echo "🧹 Cleaning project artifacts..."
+	@rm -rf build/ dist/ *.egg-info/
+	@rm -rf .pytest_cache/ .coverage* htmlcov/
+	@rm -rf .mypy_cache/ .ruff_cache/
 	@find . -type d -name __pycache__ -not -path "./.venv/*" -exec rm -rf {} + 2>/dev/null || true
 	@find . -type f -name "*.pyc" -not -path "./.venv/*" -delete 2>/dev/null || true
-	@find . -type f -name "*.pyo" -not -path "./.venv/*" -delete 2>/dev/null || true
-	@find . -type f -name "*.pyd" -not -path "./.venv/*" -delete 2>/dev/null || true
-	@echo "📝 Removing temporary files..."
-	@find . -type f -name "*.tmp" -not -path "./.venv/*" -delete 2>/dev/null || true
-	@find . -type f -name "*.temp" -not -path "./.venv/*" -delete 2>/dev/null || true
-	@find . -type f -name "*.log" -not -path "./.venv/*" -delete 2>/dev/null || true
-	@find . -type f -name "*~" -not -path "./.venv/*" -delete 2>/dev/null || true
-	@find . -type f -name ".DS_Store" -delete 2>/dev/null || true
-	@echo "🔒 Removing lock files..."
-	@rm -f .coverage.lock 2>/dev/null || true
-	@echo "📂 Removing empty directories..."
-	@find . -type d -empty -not -path "./.git/*" -not -path "./.venv/*" -delete 2>/dev/null || true
+	@find . -name ".DS_Store" -delete 2>/dev/null || true
 	@echo "✅ Clean complete!"
 
-clean-status:
-	@echo "🔍 Checking for files and directories that would be cleaned..."
-	@echo ""
-	@echo "📦 Build artifacts:"
-	@if [ -d "build" ]; then echo "  ✓ build/"; else echo "  ✗ build/ (not found)"; fi
-	@if [ -d "dist" ]; then echo "  ✓ dist/"; else echo "  ✗ dist/ (not found)"; fi
-	@if ls *.egg-info >/dev/null 2>&1; then echo "  ✓ *.egg-info/"; else echo "  ✗ *.egg-info/ (not found)"; fi
-	@echo ""
-	@echo "🧪 Test artifacts:"
-	@if [ -d ".pytest_cache" ]; then echo "  ✓ .pytest_cache/"; else echo "  ✗ .pytest_cache/ (not found)"; fi
-	@if [ -f ".coverage" ]; then echo "  ✓ .coverage"; else echo "  ✗ .coverage (not found)"; fi
-	@if [ -d "htmlcov" ]; then echo "  ✓ htmlcov/"; else echo "  ✗ htmlcov/ (not found)"; fi
-	@if [ -d "reports" ]; then echo "  ✓ reports/"; else echo "  ✗ reports/ (not found)"; fi
-	@echo ""
-	@echo "🔍 Cache directories:"
-	@if [ -d ".mypy_cache" ]; then echo "  ✓ .mypy_cache/"; else echo "  ✗ .mypy_cache/ (not found)"; fi
-	@if [ -d ".ruff_cache" ]; then echo "  ✓ .ruff_cache/"; else echo "  ✗ .ruff_cache/ (not found)"; fi
-	@if [ -d ".ropeproject" ]; then echo "  ✓ .ropeproject/"; else echo "  ✗ .ropeproject/ (not found)"; fi
-	@if [ -d ".tox" ]; then echo "  ✓ .tox/"; else echo "  ✗ .tox/ (not found)"; fi
-	@echo ""
-	@echo "🐍 Python cache files:"
-	@pycache_count=$$(find . -type d -name __pycache__ -not -path "./.venv/*" 2>/dev/null | wc -l); \
-	if [ $$pycache_count -gt 0 ]; then echo "  ✓ $$pycache_count __pycache__ directories"; else echo "  ✗ No __pycache__ directories found"; fi
-	@pyc_count=$$(find . -type f -name "*.pyc" -not -path "./.venv/*" 2>/dev/null | wc -l); \
-	if [ $$pyc_count -gt 0 ]; then echo "  ✓ $$pyc_count .pyc files"; else echo "  ✗ No .pyc files found"; fi
-	@echo ""
-	@echo "📝 Temporary files:"
-	@tmp_count=$$(find . -type f \( -name "*.tmp" -o -name "*.temp" -o -name "*.log" -o -name "*~" \) -not -path "./.venv/*" 2>/dev/null | wc -l); \
-	if [ $$tmp_count -gt 0 ]; then echo "  ✓ $$tmp_count temporary files"; else echo "  ✗ No temporary files found"; fi
-	@ds_count=$$(find . -name ".DS_Store" 2>/dev/null | wc -l); \
-	if [ $$ds_count -gt 0 ]; then echo "  ✓ $$ds_count .DS_Store files"; else echo "  ✗ No .DS_Store files found"; fi
-	@echo ""
-	@echo "📂 Empty directories:"
-	@empty_count=$$(find . -type d -empty -not -path "./.git/*" -not -path "./.venv/*" 2>/dev/null | wc -l); \
-	if [ $$empty_count -gt 0 ]; then echo "  ✓ $$empty_count empty directories"; else echo "  ✗ No empty directories found"; fi
-	@echo ""
-	@echo "💡 Run 'make clean' to clean all items marked with ✓"
-	@echo "💡 Run 'make clean-safe' to clean safely (preserves .venv)"
-	@echo "💡 Run 'make clean-all' for deep cleaning (including .venv)"
 
-clean-size:
-	@echo "📊 Calculating size of files and directories to be cleaned..."
-	@echo ""
-	@total_size=0; \
-	echo "📦 Build artifacts:"; \
-	if [ -d "build" ]; then \
-		size=$$(du -sh build 2>/dev/null | cut -f1); \
-		echo "  build/: $$size"; \
-		size_bytes=$$(du -sk build 2>/dev/null | cut -f1); \
-		total_size=$$((total_size + size_bytes)); \
-	fi; \
-	if [ -d "dist" ]; then \
-		size=$$(du -sh dist 2>/dev/null | cut -f1); \
-		echo "  dist/: $$size"; \
-		size_bytes=$$(du -sk dist 2>/dev/null | cut -f1); \
-		total_size=$$((total_size + size_bytes)); \
-	fi; \
-	if ls *.egg-info >/dev/null 2>&1; then \
-		for dir in *.egg-info; do \
-			if [ -d "$$dir" ]; then \
-				size=$$(du -sh "$$dir" 2>/dev/null | cut -f1); \
-				echo "  $$dir: $$size"; \
-				size_bytes=$$(du -sk "$$dir" 2>/dev/null | cut -f1); \
-				total_size=$$((total_size + size_bytes)); \
-			fi; \
-		done; \
-	fi; \
-	echo ""; \
-	echo "🧪 Test artifacts:"; \
-	if [ -d ".pytest_cache" ]; then \
-		size=$$(du -sh .pytest_cache 2>/dev/null | cut -f1); \
-		echo "  .pytest_cache/: $$size"; \
-		size_bytes=$$(du -sk .pytest_cache 2>/dev/null | cut -f1); \
-		total_size=$$((total_size + size_bytes)); \
-	fi; \
-	if [ -f ".coverage" ]; then \
-		size=$$(du -sh .coverage 2>/dev/null | cut -f1); \
-		echo "  .coverage: $$size"; \
-		size_bytes=$$(du -sk .coverage 2>/dev/null | cut -f1); \
-		total_size=$$((total_size + size_bytes)); \
-	fi; \
-	if [ -d "htmlcov" ]; then \
-		size=$$(du -sh htmlcov 2>/dev/null | cut -f1); \
-		echo "  htmlcov/: $$size"; \
-		size_bytes=$$(du -sk htmlcov 2>/dev/null | cut -f1); \
-		total_size=$$((total_size + size_bytes)); \
-	fi; \
-	if [ -d "reports" ]; then \
-		size=$$(du -sh reports 2>/dev/null | cut -f1); \
-		echo "  reports/: $$size"; \
-		size_bytes=$$(du -sk reports 2>/dev/null | cut -f1); \
-		total_size=$$((total_size + size_bytes)); \
-	fi; \
-	echo ""; \
-	echo "🔍 Cache directories:"; \
-	for cache_dir in .mypy_cache .ruff_cache .ropeproject .tox .nox; do \
-		if [ -d "$$cache_dir" ]; then \
-			size=$$(du -sh $$cache_dir 2>/dev/null | cut -f1); \
-			echo "  $$cache_dir/: $$size"; \
-			size_bytes=$$(du -sk $$cache_dir 2>/dev/null | cut -f1); \
-			total_size=$$((total_size + size_bytes)); \
-		fi; \
-	done; \
-	echo ""; \
-	echo "🐍 Python cache files:"; \
-	pycache_size=$$(find . -type d -name __pycache__ -not -path "./.venv/*" -exec du -sk {} + 2>/dev/null | awk '{sum += $$1} END {print sum}'); \
-	if [ -n "$$pycache_size" ] && [ "$$pycache_size" -gt 0 ]; then \
-		echo "  __pycache__ directories: $$(echo $$pycache_size | awk '{printf "%.1fK", $$1}')"; \
-		total_size=$$((total_size + pycache_size)); \
-	fi; \
-	pyc_size=$$(find . -type f -name "*.pyc" -not -path "./.venv/*" -exec du -sk {} + 2>/dev/null | awk '{sum += $$1} END {print sum}'); \
-	if [ -n "$$pyc_size" ] && [ "$$pyc_size" -gt 0 ]; then \
-		echo "  .pyc files: $$(echo $$pyc_size | awk '{printf "%.1fK", $$1}')"; \
-		total_size=$$((total_size + pyc_size)); \
-	fi; \
-	echo ""; \
-	echo "📝 Temporary files:"; \
-	tmp_size=$$(find . -type f \( -name "*.tmp" -o -name "*.temp" -o -name "*.log" -o -name "*~" \) -not -path "./.venv/*" -exec du -sk {} + 2>/dev/null | awk '{sum += $$1} END {print sum}'); \
-	if [ -n "$$tmp_size" ] && [ "$$tmp_size" -gt 0 ]; then \
-		echo "  Temporary files: $$(echo $$tmp_size | awk '{printf "%.1fK", $$1}')"; \
-		total_size=$$((total_size + tmp_size)); \
-	fi; \
-	ds_size=$$(find . -name ".DS_Store" -exec du -sk {} + 2>/dev/null | awk '{sum += $$1} END {print sum}'); \
-	if [ -n "$$ds_size" ] && [ "$$ds_size" -gt 0 ]; then \
-		echo "  .DS_Store files: $$(echo $$ds_size | awk '{printf "%.1fK", $$1}')"; \
-		total_size=$$((total_size + ds_size)); \
-	fi; \
-	echo ""; \
-	echo "📊 Total size to be cleaned: $$(echo $$total_size | awk '{if($$1>=1024*1024) printf "%.1fG", $$1/1024/1024; else if($$1>=1024) printf "%.1fM", $$1/1024; else printf "%.1fK", $$1}')"; \
-	echo ""; \
-	echo "💡 Run 'make clean' to free up this space"
-
-clean-cache:
-	@echo "🗄️ Cleaning cache files only..."
-	@rm -rf .mypy_cache/
-	@rm -rf .ruff_cache/
-	@rm -rf .ropeproject/
-	@rm -rf .pytest_cache/
-	@find . -type d -name __pycache__ -not -path "./.venv/*" -exec rm -rf {} + 2>/dev/null || true
-	@find . -type f -name "*.pyc" -not -path "./.venv/*" -delete 2>/dev/null || true
-	@echo "✅ Cache cleaning complete!"
-
-clean-test:
-	@echo "🧪 Cleaning test artifacts..."
-	@rm -rf .pytest_cache/
-	@rm -rf .coverage
-	@rm -rf .coverage.*
-	@rm -rf htmlcov/
-	@rm -rf reports/
-	@rm -rf junit.xml
-	@rm -rf .testmondata
-	@rm -rf test-results/
-	@rm -rf pytest.xml
-	@rm -rf mypy.xml
-	@echo "✅ Test artifacts cleaned!"
-
-clean-build:
-	@echo "📦 Cleaning build artifacts..."
-	@rm -rf build/
-	@rm -rf dist/
-	@rm -rf *.egg-info/
-	@rm -rf codn.egg-info/
-	@echo "✅ Build artifacts cleaned!"
 
 clean-all: clean
 	@echo "🔥 Deep cleaning (including virtual environment)..."
 	@rm -rf .venv/
 	@echo "✅ Deep clean complete!"
-
-clean-safe:
-	@echo "🛡️ Safe cleaning (preserves .venv and important files)..."
-	@echo "📦 Removing build directories..."
-	@rm -rf build/
-	@rm -rf dist/
-	@rm -rf *.egg-info/
-	@echo "🧪 Removing test artifacts..."
-	@rm -rf .pytest_cache/
-	@rm -rf .coverage
-	@rm -rf htmlcov/
-	@rm -rf reports/
-	@echo "🔍 Removing cache directories..."
-	@rm -rf .mypy_cache/
-	@rm -rf .ruff_cache/
-	@rm -rf .ropeproject/
-	@echo "🐍 Removing Python cache files..."
-	@find . -type d -name __pycache__ -not -path "./.venv/*" -exec rm -rf {} + 2>/dev/null || true
-	@find . -type f -name "*.pyc" -not -path "./.venv/*" -delete 2>/dev/null || true
-	@echo "✅ Safe clean complete!"
 
 # Continuous Integration commands
 ci-test:
