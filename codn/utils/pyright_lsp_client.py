@@ -134,7 +134,7 @@ class PyrightLSPClient:
             raise LSPError(f"Cannot send request in state: {self._state}")
 
         msg_id = next(self._msg_id)
-        future = asyncio.Future()
+        future: asyncio.Future[Any] = asyncio.Future()
 
         async with self._lock:
             self._pending[msg_id] = future
@@ -294,7 +294,7 @@ class PyrightLSPClient:
         content: str = "",
         language_id: str = "python",
     ) -> None:
-        """Unified file state management"""
+        """Unified file state management."""
         async with self._lock:
             if action == "open":
                 if uri in self.open_files:
@@ -621,9 +621,9 @@ async def watch_and_sync(client: PyrightLSPClient, root_path: Path) -> None:
             for change_type, path_obj in changes:
                 if client._shutdown_event.is_set():
                     break
-                path_obj = Path(path_obj)  # noqa: PLW2901
-                if _should_process_file(path_obj):
-                    await _handle_file_change(client, change_type, path_obj)
+                file_path = Path(path_obj)
+                if _should_process_file(file_path):
+                    await _handle_file_change(client, change_type, file_path)
     except Exception as e:
         if not client._shutdown_event.is_set():
             logger.error(f"File watcher error: {e}")

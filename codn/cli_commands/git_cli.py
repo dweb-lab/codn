@@ -21,8 +21,7 @@ def check(
         typer.Option("--verbose", "-v", help="Show detailed output"),
     ] = False,
 ) -> None:
-    """
-    Check if the given path is a valid and healthy Git repository.
+    """Check if the given path is a valid and healthy Git repository.
 
     This command verifies:
     - The existence of the .git directory

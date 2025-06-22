@@ -1,6 +1,4 @@
-"""
-CLI commands for code analysis features.
-"""
+"""CLI commands for code analysis features."""
 
 from pathlib import Path
 from typing import Annotated, Optional
@@ -28,11 +26,10 @@ console = Console()
 
 @app.callback()
 def analyze_main(ctx: typer.Context) -> None:
-    """
-    📊 Code analysis and statistics
+    """📊 Code analysis and statistics.
 
-    Analyze your Python codebase with powerful tools for understanding
-    code structure, finding issues, and improving code quality.
+    Analyze your Python codebase with powerful tools for understanding code structure,
+    finding issues, and improving code quality.
     """
     if ctx.invoked_subcommand is None:
         show_analyze_welcome()
@@ -86,7 +83,7 @@ def analyze_project(
     console.print(f"[blue]Analyzing project at: {path}[/blue]")
 
     # Get all Python files
-    ignored_dirs = [] if include_tests else ["tests", "test"]
+    ignored_dirs = set() if include_tests else {"tests", "test"}
     python_files = list_all_python_files_sync(path, ignored_dirs=ignored_dirs)
 
     if not python_files:
@@ -290,9 +287,11 @@ def analyze_project(
 
         for detail in file_details:
             try:
-                relative_path = detail["file"].relative_to(path)
-            except ValueError:
-                relative_path = detail["file"]
+                file_path_str = str(detail["file"])
+                relative_path = Path(file_path_str).relative_to(path)
+            except (ValueError, TypeError):
+                file_path_str = str(detail["file"])
+                relative_path = Path(file_path_str)
 
             detail_table.add_row(
                 str(relative_path),
@@ -300,7 +299,10 @@ def analyze_project(
                 str(detail["functions"]),
                 str(detail["classes"]),
                 str(detail["methods"]),
-                str(detail["unused_imports"]) if detail["unused_imports"] > 0 else "-",
+                str(detail["unused_imports"])
+                if isinstance(detail["unused_imports"], int)
+                and detail["unused_imports"] > 0
+                else "-",
             )
 
         console.print(detail_table)
@@ -335,7 +337,7 @@ def find_references(
     )
 
     # Get all Python files
-    ignored_dirs = [] if include_tests else ["tests", "test"]
+    ignored_dirs = set() if include_tests else {"tests", "test"}
     python_files = list_all_python_files_sync(path, ignored_dirs=ignored_dirs)
 
     if not python_files:
@@ -429,7 +431,7 @@ def find_unused_imports_cmd(
     console.print(f"[blue]Finding unused imports in: {path}[/blue]")
 
     # Get all Python files
-    ignored_dirs = [] if include_tests else ["tests", "test"]
+    ignored_dirs = set() if include_tests else {"tests", "test"}
     python_files = list_all_python_files_sync(path, ignored_dirs=ignored_dirs)
 
     if not python_files:
@@ -559,7 +561,7 @@ def analyze_functions(
     console.print(f"[blue]Analyzing functions in: {path}[/blue]")
 
     # Get all Python files
-    ignored_dirs = [] if include_tests else ["tests", "test"]
+    ignored_dirs = set() if include_tests else {"tests", "test"}
     python_files = list_all_python_files_sync(path, ignored_dirs=ignored_dirs)
 
     if not python_files:
@@ -585,18 +587,18 @@ def analyze_functions(
                 functions = extract_function_signatures(content)
                 for func in functions:
                     try:
-                        func["file"] = file_path.relative_to(path)
+                        func["file"] = str(file_path.relative_to(path))
                     except ValueError:
-                        func["file"] = file_path
+                        func["file"] = str(file_path)
                     all_functions.append(func)
 
                 # Extract methods
                 methods = extract_class_methods(content, class_name)
                 for method in methods:
                     try:
-                        method["file"] = file_path.relative_to(path)
+                        method["file"] = str(file_path.relative_to(path))
                     except ValueError:
-                        method["file"] = file_path
+                        method["file"] = str(file_path)
                     all_methods.append(method)
 
             except Exception as e:
@@ -623,10 +625,11 @@ def analyze_functions(
                 str(func["line"]),
             ]
             if show_signatures:
-                args_str = ", ".join(func["args"]) if func["args"] else ""
+                args_list = func["args"] if isinstance(func["args"], list) else []
+                args_str = ", ".join(str(arg) for arg in args_list) if args_list else ""
                 row.append(args_str)
             row.append("✓" if func["is_async"] else "")
-            func_table.add_row(*row)
+            func_table.add_row(*[str(item) for item in row])
 
         console.print(func_table)
 
@@ -656,8 +659,8 @@ def analyze_functions(
                 method_type = "async"
 
             method_table.add_row(
-                method["class_name"],
-                method["method_name"],
+                str(method["class_name"]),
+                str(method["method_name"]),
                 str(method["file"]),
                 str(method["line"]),
                 method_type,

@@ -1,12 +1,11 @@
 import shutil
-import subprocess
+import subprocess  # nosec
 from pathlib import Path
 from typing import Union
 
 
 def is_valid_git_repo(path: Union[str, Path]) -> bool:
-    """
-    Check if the given path is a valid and healthy Git repository.
+    """Check if the given path is a valid and healthy Git repository.
 
     Args:
         path: Path to the root of a potential Git repository.
@@ -28,7 +27,7 @@ def is_valid_git_repo(path: Union[str, Path]) -> bool:
 
     try:
         # Check if we can access the current HEAD commit
-        subprocess.run(
+        subprocess.run(  # nosec
             [git_executable, "-C", str(repo_path), "rev-parse", "HEAD"],
             check=True,
             capture_output=True,
@@ -37,7 +36,7 @@ def is_valid_git_repo(path: Union[str, Path]) -> bool:
         )
 
         # Check for repository corruption
-        result = subprocess.run(
+        result = subprocess.run(  # nosec
             [git_executable, "-C", str(repo_path), "fsck"],
             check=True,
             capture_output=True,

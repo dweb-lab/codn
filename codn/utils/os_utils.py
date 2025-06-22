@@ -42,8 +42,8 @@ def should_ignore(
     ignored_dirs: Set[str],
     gitignore_spec: pathspec.PathSpec,
 ) -> bool:
-    """
-    Check if a file should be ignored based on directory names and gitignore patterns.
+    """Check if a file should be ignored based on directory names and gitignore
+    patterns.
 
     Args:
         file_path: The file path to check
@@ -71,8 +71,7 @@ def list_all_python_files_sync(
     root: Union[str, Path] = ".",
     ignored_dirs: Optional[Set[str]] = None,
 ) -> list[Path]:
-    """
-    Synchronously return all Python files in the directory tree.
+    """Synchronously return all Python files in the directory tree.
 
     Args:
         root: Root directory to start searching from
@@ -100,8 +99,7 @@ async def list_all_python_files(
     root: Union[str, Path] = ".",
     ignored_dirs: Optional[Set[str]] = None,
 ) -> AsyncGenerator[Path, None]:
-    """
-    Asynchronously yield all Python files in the directory tree.
+    """Asynchronously yield all Python files in the directory tree.
 
     Args:
         root: Root directory to start searching from

@@ -9,8 +9,7 @@ except ImportError:
 
 
 def find_enclosing_function(content: str, line: int, _character: int) -> Optional[str]:
-    """
-    Find the name of the function or method that contains the given position.
+    """Find the name of the function or method that contains the given position.
 
     Args:
         content: Python source code
@@ -93,8 +92,7 @@ def find_enclosing_function(content: str, line: int, _character: int) -> Optiona
 
 
 def extract_inheritance_relations(content: str) -> List[Tuple[str, str]]:
-    """
-    Extract class inheritance relationships from Python source code.
+    """Extract class inheritance relationships from Python source code.
 
     Args:
         content: Python source code
@@ -122,8 +120,7 @@ def extract_inheritance_relations(content: str) -> List[Tuple[str, str]]:
 
 
 def _extract_base_name(base: ast.expr) -> Optional[str]:
-    """
-    Extract the name of a base class from an AST node.
+    """Extract the name of a base class from an AST node.
 
     Args:
         base: AST node representing a base class
@@ -143,8 +140,7 @@ def _extract_base_name(base: ast.expr) -> Optional[str]:
 
 
 def find_function_references(content: str, function_name: str) -> List[Tuple[int, int]]:
-    """
-    Find all references to a function in the given content.
+    """Find all references to a function in the given content.
 
     Args:
         content: Python source code
@@ -178,9 +174,8 @@ def find_function_references(content: str, function_name: str) -> List[Tuple[int
 
 def extract_function_signatures(
     content: str,
-) -> List[Dict[str, Union[str, int, List[str]]]]:
-    """
-    Extract function signatures from Python source code.
+) -> List[Dict[str, object]]:
+    """Extract function signatures from Python source code.
 
     Args:
         content: Python source code
@@ -200,7 +195,7 @@ def extract_function_signatures(
             self,
             node: Union[ast.FunctionDef, ast.AsyncFunctionDef],
         ) -> None:
-            args = []
+            args: list[str] = []
             defaults = []
 
             # Extract argument names
@@ -251,8 +246,7 @@ def extract_function_signatures(
 
 
 def find_unused_imports(content: str) -> List[Tuple[str, int]]:
-    """
-    Find unused imports in Python source code.
+    """Find unused imports in Python source code.
 
     Args:
         content: Python source code
@@ -303,9 +297,8 @@ def find_unused_imports(content: str) -> List[Tuple[str, int]]:
 def extract_class_methods(
     content: str,
     class_name: Optional[str] = None,
-) -> List[Dict[str, Union[str, int, List[str]]]]:
-    """
-    Extract methods from classes in Python source code.
+) -> List[Dict[str, object]]:
+    """Extract methods from classes in Python source code.
 
     Args:
         content: Python source code
