@@ -37,6 +37,7 @@ repos:
         entry: bandit
         language: system
         types: [python]
+        exclude: ^tests/
 
       - id: docformatter
         name: docformatter
