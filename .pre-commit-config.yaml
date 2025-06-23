@@ -5,7 +5,6 @@ repos:
   # Ruff - Fast Python linter and formatter (using local installation)
   - repo: local
     hooks:
-      # Linting
       - id: ruff
         name: ruff lint
         description: Run ruff linter
@@ -14,7 +13,6 @@ repos:
         args: [--fix, --exit-non-zero-on-fix]
         types: [python]
 
-      # Formatting
       - id: ruff-format
         name: ruff format
         description: Run ruff formatter
@@ -22,39 +20,35 @@ repos:
         language: system
         types: [python]
 
-      # MyPy type checking
       - id: mypy
-        name: mypy type check
-        entry: python -m mypy
+        name: mypy
+        entry: mypy
         language: system
         types: [python]
-        args: [--ignore-missing-imports, --show-error-codes, codn/]
-        exclude: ^(tests/|docs/examples/)
+        args:
+          [
+            --explicit-package-bases,
+            --ignore-missing-imports,
+            --show-error-codes,
+          ]
 
-      # Security checks with bandit
       - id: bandit
-        name: bandit security check
-        entry: python -m bandit
+        name: bandit
+        entry: bandit
         language: system
         types: [python]
-        args: [-r, codn/]
-        exclude: ^tests/
 
-      # Docstring formatting
       - id: docformatter
         name: docformatter
-        entry: python -m docformatter
+        entry: docformatter
         language: system
         types: [python]
         args: [--in-place, --wrap-summaries=88, --wrap-descriptions=88]
-        files: ^codn/.*\.py$
-        pass_filenames: true
 
   # Built-in pre-commit hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
-      # File quality checks
       - id: trailing-whitespace
         name: trim trailing whitespace
 
@@ -73,28 +67,25 @@ repos:
       # Python specific checks
       - id: check-ast
         name: check python ast
-        description: Check whether files parse as valid python
 
       - id: check-merge-conflict
-        name: check for merge conflicts
+        name: merge conflicts
 
       - id: check-case-conflict
-        name: check for case conflicts
+        name: case conflicts
 
       - id: debug-statements
-        name: debug statements (Python)
-        description: Check for debugger imports and py37+ breakpoint() calls
+        name: debug statements
 
-      # File size and encoding
       - id: check-added-large-files
-        name: check for added large files
+        name: large files check
         args: ["--maxkb=1000"]
 
       - id: mixed-line-ending
-        name: mixed line ending
+        name: mixed line endings
 
       - id: check-executables-have-shebangs
-        name: check that executables have shebangs
+        name: shebang check
 
 # Pre-commit configuration
 default_language_version:
