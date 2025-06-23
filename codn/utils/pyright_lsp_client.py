@@ -1,14 +1,11 @@
 import asyncio
 import json
 import re
-import signal
-import sys
 from dataclasses import dataclass
 from enum import Enum
 from itertools import count
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
-
+from typing import Any, Dict, List, Set, Optional
 from loguru import logger
 from watchfiles import awatch
 
@@ -66,7 +63,7 @@ class PyrightLSPClient:
             await self._start_subprocess()
             await self._initialize()
             self._state = LSPClientState.RUNNING
-            logger.info("LSP client started successfully")
+            logger.trace("LSP client started successfully")
         except Exception as e:
             self._state = LSPClientState.STOPPED
             await self._cleanup()
@@ -222,7 +219,7 @@ class PyrightLSPClient:
                 if line.endswith(b"\r\n"):
                     break
         except Exception as e:
-            logger.debug(f"Error reading line: {e}")
+            logger.trace(f"Error reading line: {e}")
         return bytes(line)
 
     async def _read_body(self, length: int) -> Optional[Dict[str, Any]]:
@@ -267,16 +264,18 @@ class PyrightLSPClient:
         uri = params.get("uri", "")
         diagnostics = params.get("diagnostics", [])
         if diagnostics:
-            logger.info(f"Diagnostics for {uri}: {len(diagnostics)} issues")
+            logger.trace(f"Diagnostics for {uri}: {len(diagnostics)} issues")
             for diag in diagnostics:
                 message = diag.get("message", "")
                 line = diag.get("range", {}).get("start", {}).get("line", 0)
-                logger.debug(f"  Line {line + 1}: {message}")
+                logger.trace(f"  Line {line + 1}: {message}")
 
     async def _handle_log_message(self, params: Dict[str, Any]) -> None:
         message = params.get("message", "")
         msg_type = params.get("type", 1)
-        log_func = [logger.error, logger.warning, logger.info, logger.debug][
+        if msg_type > 2:
+            return
+        log_func = [logger.error, logger.warning, logger.trace, logger.trace][
             min(msg_type - 1, 3)
         ]
         log_func(f"LSP: {message}")
@@ -284,7 +283,7 @@ class PyrightLSPClient:
     async def _handle_show_message(self, params: Dict[str, Any]) -> None:
         message = params.get("message", "")
         msg_type = params.get("type", 1)
-        logger.info(f"LSP Message (type {msg_type}): {message}")
+        logger.trace(f"LSP Message (type {msg_type}): {message}")
 
     async def _manage_file_state(
         self,
@@ -404,7 +403,7 @@ class PyrightLSPClient:
             return
 
         self._state = LSPClientState.STOPPING
-        logger.info("Shutting down LSP client...")
+        logger.trace("Shutting down LSP client...")
 
         try:
             self._shutdown_event.set()
@@ -415,12 +414,20 @@ class PyrightLSPClient:
                         future.cancel()
                 self._pending.clear()
 
-            if self.proc:
+            if self.proc and self.state not in {
+                LSPClientState.STOPPING,
+                LSPClientState.STOPPED,
+            }:
                 try:
                     await asyncio.wait_for(self._request("shutdown", {}), timeout=5.0)
+                except Exception as e:
+                    logger.warning(f"LSP shutdown request failed or timed out: {e}")
+                try:
                     await self._notify("exit", {})
-                except (asyncio.TimeoutError, LSPError):
-                    logger.warning("LSP shutdown sequence failed or timed out")
+                except Exception as e:
+                    logger.warning(f"LSP exit notify failed: {e}")
+            else:
+                logger.trace(f"LSP already stopping or stopped: {self.state}")
 
             await self._cancel_tasks()
             await self._cleanup()
@@ -428,7 +435,7 @@ class PyrightLSPClient:
             logger.error(f"Error during shutdown: {e}")
         finally:
             self._state = LSPClientState.STOPPED
-            logger.info("LSP client shutdown complete")
+            logger.trace("LSP client shutdown complete")
 
     async def _cancel_tasks(self) -> None:
         if not self._tasks:
@@ -461,7 +468,7 @@ class PyrightLSPClient:
                         self.proc.kill()
                         await self.proc.wait()
             except Exception as e:
-                logger.debug(f"Error during cleanup: {e}")
+                logger.trace(f"Error during cleanup: {e}")
 
         self.open_files.clear()
         self.file_versions.clear()
@@ -499,7 +506,7 @@ def extract_symbol_code(sym: Dict[str, Any], content: str, strip: bool = False) 
 
         return "\n".join(code_lines)
     except Exception as e:
-        logger.debug(f"Error extracting symbol code: {e}")
+        logger.trace(f"Error extracting symbol code: {e}")
         return ""
 
 
@@ -541,19 +548,18 @@ def extract_inheritance_relations(
 
         return relations
     except Exception as e:
-        logger.debug(f"Error extracting inheritance relations: {e}")
+        logger.trace(f"Error extracting inheritance relations: {e}")
         return {}
 
 
 def find_enclosing_function(
     symbols: List[Dict[str, Any]],
     line: int,
-    character: int,
 ) -> Optional[str]:
     def _search_symbols(syms: List[Dict[str, Any]]) -> Optional[str]:
         result = None
         for symbol in syms:
-            if symbol.get("kind") == 12:  # Function
+            if symbol.get("kind") in (5, 6, 12):  # Function Method
                 rng = symbol.get("location", {}).get("range", {})
                 start_line = rng.get("start", {}).get("line", -1)
                 end_line = rng.get("end", {}).get("line", -1)
@@ -570,7 +576,7 @@ def find_enclosing_function(
     try:
         return _search_symbols(symbols)
     except Exception as e:
-        logger.debug(f"Error finding enclosing function: {e}")
+        logger.trace(f"Error finding enclosing function: {e}")
         return None
 
 
@@ -613,7 +619,7 @@ async def watch_and_sync(client: PyrightLSPClient, root_path: Path) -> None:
         return
 
     try:
-        logger.info(f"Starting file watcher for: {root_path}")
+        logger.trace(f"Starting file watcher for: {root_path}")
         async for changes in awatch(root_path):
             if client._shutdown_event.is_set():
                 break
@@ -626,38 +632,3 @@ async def watch_and_sync(client: PyrightLSPClient, root_path: Path) -> None:
     except Exception as e:
         if not client._shutdown_event.is_set():
             logger.error(f"File watcher error: {e}")
-
-
-async def main() -> None:
-    root_path = Path.cwd()
-    logger.remove()
-    logger.add(sys.stderr, level="INFO", format="{time} | {level} | {message}")
-
-    config = LSPConfig(timeout=30.0, enable_file_watcher=True, log_level="INFO")
-    client = PyrightLSPClient(path_to_file_uri(str(root_path)), config)
-    shutdown_event = asyncio.Event()
-
-    def signal_handler(signum: int, frame) -> None:
-        logger.info(f"Received signal {signum}, initiating shutdown...")
-        shutdown_event.set()
-
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        signal.signal(sig, signal_handler)
-
-    try:
-        await client.start()
-
-        if config.enable_file_watcher:
-            watcher_task = asyncio.create_task(watch_and_sync(client, root_path))
-            client._tasks.add(watcher_task)
-            watcher_task.add_done_callback(client._tasks.discard)
-
-        logger.info("LSP client started successfully. Press Ctrl+C to stop.")
-        await shutdown_event.wait()
-    except KeyboardInterrupt:
-        logger.info("Received keyboard interrupt")
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-    finally:
-        await client.shutdown()
-        logger.info("Application shutdown complete")
