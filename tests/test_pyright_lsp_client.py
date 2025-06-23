@@ -1,8 +1,7 @@
-"""
-Tests for PyrightLSPClient module.
+"""Tests for PyrightLSPClient module.
 
-This module contains comprehensive tests for the Pyright LSP client,
-including unit tests, integration tests, and mocking scenarios.
+This module contains comprehensive tests for the Pyright LSP client, including unit
+tests, integration tests, and mocking scenarios.
 """
 
 import asyncio
@@ -343,12 +342,12 @@ class AnotherClass(TestClass, Mixin):
 
     def test_find_enclosing_function_valid(self, sample_symbols):
         """Test finding enclosing function for valid position."""
-        result = find_enclosing_function(sample_symbols, 9, 10)
+        result = find_enclosing_function(sample_symbols, 9)
         assert result == "greet"
 
     def test_find_enclosing_function_no_match(self, sample_symbols):
         """Test finding enclosing function with no match."""
-        result = find_enclosing_function(sample_symbols, 0, 0)
+        result = find_enclosing_function(sample_symbols, 0)
         assert result is None
 
     def test_find_enclosing_function_nested_symbols(self):
@@ -378,7 +377,7 @@ class AnotherClass(TestClass, Mixin):
             },
         ]
 
-        result = find_enclosing_function(symbols, 6, 8)
+        result = find_enclosing_function(symbols, 6)
         assert result == "inner_function"
 
 
