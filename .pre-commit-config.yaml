@@ -22,6 +22,34 @@ repos:
         language: system
         types: [python]
 
+      # MyPy type checking
+      - id: mypy
+        name: mypy type check
+        entry: python -m mypy
+        language: system
+        types: [python]
+        args: [--ignore-missing-imports, --show-error-codes, codn/]
+        exclude: ^(tests/|docs/examples/)
+
+      # Security checks with bandit
+      - id: bandit
+        name: bandit security check
+        entry: python -m bandit
+        language: system
+        types: [python]
+        args: [-r, codn/]
+        exclude: ^tests/
+
+      # Docstring formatting
+      - id: docformatter
+        name: docformatter
+        entry: python -m docformatter
+        language: system
+        types: [python]
+        args: [--in-place, --wrap-summaries=88, --wrap-descriptions=88]
+        files: ^codn/.*\.py$
+        pass_filenames: true
+
   # Built-in pre-commit hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
@@ -67,37 +95,6 @@ repos:
 
       - id: check-executables-have-shebangs
         name: check that executables have shebangs
-
-  # All tools using local installation to avoid GitHub downloads
-  - repo: local
-    hooks:
-      # MyPy type checking
-      - id: mypy
-        name: mypy type check
-        entry: python -m mypy
-        language: system
-        types: [python]
-        args: [--ignore-missing-imports, --show-error-codes, codn/]
-        exclude: ^(tests/|docs/examples/)
-
-      # Security checks with bandit
-      - id: bandit
-        name: bandit security check
-        entry: python -m bandit
-        language: system
-        types: [python]
-        args: [-r, codn/]
-        exclude: ^tests/
-
-      # Docstring formatting
-      - id: docformatter
-        name: docformatter
-        entry: python -m docformatter
-        language: system
-        types: [python]
-        args: [--in-place, --wrap-summaries=88, --wrap-descriptions=88]
-        files: ^codn/.*\.py$
-        pass_filenames: true
 
 # Pre-commit configuration
 default_language_version:
