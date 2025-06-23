@@ -13,7 +13,6 @@ repos:
         language: system
         args: [--fix, --exit-non-zero-on-fix]
         types: [python]
-        pass_filenames: false
 
       # Formatting
       - id: ruff-format
@@ -22,7 +21,6 @@ repos:
         entry: ruff format codn/
         language: system
         types: [python]
-        pass_filenames: false
 
   # Built-in pre-commit hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -80,7 +78,6 @@ repos:
         language: system
         types: [python]
         args: [--ignore-missing-imports, --show-error-codes, codn/]
-        pass_filenames: false
         exclude: ^(tests/|docs/examples/)
 
       # Security checks with bandit
@@ -90,7 +87,6 @@ repos:
         language: system
         types: [python]
         args: [-r, codn/]
-        pass_filenames: false
         exclude: ^tests/
 
       # Docstring formatting
