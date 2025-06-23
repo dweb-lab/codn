@@ -1,10 +1,6 @@
 import ast
 from typing import Dict, List, Optional, Tuple, Union
-
-try:
-    import asttokens  # type: ignore[import-untyped]
-except ImportError:
-    asttokens = None
+import asttokens
 
 
 def find_enclosing_function(content: str, line: int, _character: int) -> Optional[str]:
@@ -23,9 +19,7 @@ def find_enclosing_function(content: str, line: int, _character: int) -> Optiona
     except SyntaxError:
         return None
 
-    # Try to add end_lineno information if asttokens is available
-    if asttokens is not None:
-        asttokens.ASTTokens(content, tree=tree)
+    asttokens.ASTTokens(content, tree=tree)
 
     enclosing_functions: List[str] = []
 
