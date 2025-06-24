@@ -1,5 +1,4 @@
-"""
-Unit tests for codn.utils.simple_ast module.
+"""Unit tests for codn.utils.simple_ast module.
 
 This module contains comprehensive tests for Python AST analysis functionality,
 including function detection, inheritance analysis, and edge cases.

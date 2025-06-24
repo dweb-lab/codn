@@ -1,5 +1,4 @@
-"""
-Unit tests for codn.utils.git_utils module.
+"""Unit tests for codn.utils.git_utils module.
 
 This module contains comprehensive tests for Git repository validation functionality,
 including various repository states, error conditions, and edge cases.

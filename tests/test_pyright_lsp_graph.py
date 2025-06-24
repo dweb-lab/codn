@@ -5,9 +5,9 @@ from urllib.parse import unquote, urlparse
 
 from watchfiles import awatch
 
-from codn.utils.os_utils import list_all_python_files
-from codn.utils.pyright_lsp_client import (
-    PyrightLSPClient,
+from codn.utils.os_utils import list_all_files
+from codn.utils.base_lsp_client import (
+    BaseLSPClient,
     extract_inheritance_relations,
     extract_symbol_code,
     find_enclosing_function,
@@ -34,9 +34,9 @@ async def main():
     root_uri = path_to_file_uri(str(root_path))
     print(str(root_uri))
     len_root_uri = len(str(root_uri))
-    client = PyrightLSPClient(root_uri)
+    client = BaseLSPClient(root_uri)
     await client.start()
-    async for py_file in list_all_python_files("."):
+    async for py_file in list_all_files(".", "*.py"):
         content = py_file.read_text(encoding="utf-8")
         if not content:
             continue

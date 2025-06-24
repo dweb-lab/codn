@@ -1,4 +1,4 @@
-"""Tests for PyrightLSPClient module.
+"""Tests for BaseLSPClient module.
 
 This module contains comprehensive tests for the Pyright LSP client, including unit
 tests, integration tests, and mocking scenarios.
@@ -10,11 +10,11 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from codn.utils.pyright_lsp_client import (
+from codn.utils.base_lsp_client import (
     LSPClientState,
     LSPConfig,
     LSPError,
-    PyrightLSPClient,
+    BaseLSPClient,
     _should_process_file,
     extract_inheritance_relations,
     extract_symbol_code,
@@ -67,13 +67,13 @@ class TestLSPConfig:
         assert config.log_level == "DEBUG"
 
 
-class TestPyrightLSPClient:
-    """Test PyrightLSPClient class."""
+class TestBaseLSPClient:
+    """Test BaseLSPClient class."""
 
     def test_initialization(self, lsp_config):
         """Test client initialization."""
         root_uri = "file:///test/path"
-        client = PyrightLSPClient(root_uri, lsp_config)
+        client = BaseLSPClient(root_uri, lsp_config)
 
         assert client.root_uri == root_uri
         assert client.config == lsp_config
@@ -84,7 +84,7 @@ class TestPyrightLSPClient:
     def test_initialization_without_config(self):
         """Test client initialization with default config."""
         root_uri = "file:///test/path"
-        client = PyrightLSPClient(root_uri)
+        client = BaseLSPClient(root_uri)
 
         assert client.root_uri == root_uri
         assert isinstance(client.config, LSPConfig)
@@ -93,25 +93,25 @@ class TestPyrightLSPClient:
     @pytest.mark.asyncio
     async def test_start_when_already_running(self, lsp_config):
         """Test starting client when already running raises error."""
-        client = PyrightLSPClient("file:///test", lsp_config)
+        client = BaseLSPClient("file:///test", lsp_config)
         client._state = LSPClientState.RUNNING
 
         with pytest.raises(LSPError, match="Cannot start client in state"):
-            await client.start()
+            await client.start("py")
 
     @pytest.mark.asyncio
     async def test_start_subprocess_failure(self, lsp_config):
         """Test subprocess start failure."""
-        client = PyrightLSPClient("file:///test", lsp_config)
+        client = BaseLSPClient("file:///test", lsp_config)
 
         with patch("asyncio.create_subprocess_exec", side_effect=FileNotFoundError):
             with pytest.raises(LSPError, match="Pyright not found"):
-                await client._start_subprocess()
+                await client._start_subprocess("py")
 
     @pytest.mark.asyncio
     async def test_send_message_without_process(self, lsp_config):
         """Test sending message without active process."""
-        client = PyrightLSPClient("file:///test", lsp_config)
+        client = BaseLSPClient("file:///test", lsp_config)
 
         with pytest.raises(LSPError, match="LSP process not available"):
             await client._send({"test": "message"})
@@ -119,7 +119,7 @@ class TestPyrightLSPClient:
     @pytest.mark.asyncio
     async def test_request_timeout(self, lsp_config):
         """Test request timeout handling."""
-        client = PyrightLSPClient("file:///test", lsp_config)
+        client = BaseLSPClient("file:///test", lsp_config)
         client._state = LSPClientState.RUNNING
 
         # Mock process and stdin
@@ -134,7 +134,7 @@ class TestPyrightLSPClient:
     @pytest.mark.asyncio
     async def test_file_state_management_open(self, mock_lsp_client):
         """Test file state management for opening files."""
-        client = PyrightLSPClient("file:///test")
+        client = BaseLSPClient("file:///test")
         client._notify = AsyncMock()
 
         uri = "file:///test.py"
@@ -149,7 +149,7 @@ class TestPyrightLSPClient:
     @pytest.mark.asyncio
     async def test_file_state_management_change(self, mock_lsp_client):
         """Test file state management for changing files."""
-        client = PyrightLSPClient("file:///test")
+        client = BaseLSPClient("file:///test")
         client._notify = AsyncMock()
 
         uri = "file:///test.py"
@@ -167,7 +167,7 @@ class TestPyrightLSPClient:
     @pytest.mark.asyncio
     async def test_file_state_management_close(self, mock_lsp_client):
         """Test file state management for closing files."""
-        client = PyrightLSPClient("file:///test")
+        client = BaseLSPClient("file:///test")
         client._notify = AsyncMock()
 
         uri = "file:///test.py"
@@ -184,7 +184,7 @@ class TestPyrightLSPClient:
 
     def test_parameter_validation_references(self, lsp_config):
         """Test parameter validation for references request."""
-        client = PyrightLSPClient("file:///test", lsp_config)
+        client = BaseLSPClient("file:///test", lsp_config)
 
         with pytest.raises(ValueError, match="must be non-negative"):
             asyncio.run(client.send_references("file:///test.py", -1, 0))
@@ -194,14 +194,14 @@ class TestPyrightLSPClient:
 
     def test_parameter_validation_definition(self, lsp_config):
         """Test parameter validation for definition request."""
-        client = PyrightLSPClient("file:///test", lsp_config)
+        client = BaseLSPClient("file:///test", lsp_config)
 
         with pytest.raises(ValueError, match="must be non-negative"):
             asyncio.run(client.send_definition("file:///test.py", -1, 0))
 
     def test_parameter_validation_document_symbol(self, lsp_config):
         """Test parameter validation for document symbol request."""
-        client = PyrightLSPClient("file:///test", lsp_config)
+        client = BaseLSPClient("file:///test", lsp_config)
 
         with pytest.raises(ValueError, match="URI is required"):
             asyncio.run(client.send_document_symbol(""))
@@ -209,7 +209,7 @@ class TestPyrightLSPClient:
     @pytest.mark.asyncio
     async def test_shutdown_multiple_calls(self, lsp_config):
         """Test multiple shutdown calls are handled gracefully."""
-        client = PyrightLSPClient("file:///test", lsp_config)
+        client = BaseLSPClient("file:///test", lsp_config)
         client._cleanup = AsyncMock()
         client._cancel_tasks = AsyncMock()
 
@@ -419,8 +419,8 @@ class TestFileWatcher:
 
 
 @pytest.mark.integration
-class TestPyrightLSPClientIntegration:
-    """Integration tests for PyrightLSPClient."""
+class TestBaseLSPClientIntegration:
+    """Integration tests for BaseLSPClient."""
 
     @pytest.mark.slow
     @pytest.mark.asyncio
@@ -486,7 +486,7 @@ class TestPyrightLSPClientIntegration:
 @pytest.mark.asyncio
 async def test_concurrent_requests(mock_lsp_client):
     """Test handling concurrent requests."""
-    client = PyrightLSPClient("file:///test")
+    client = BaseLSPClient("file:///test")
     client._request = AsyncMock(return_value=[])
 
     # Create multiple concurrent requests

@@ -1,5 +1,4 @@
-"""
-Basic test file to verify pytest configuration.
+"""Basic test file to verify pytest configuration.
 
 This file contains simple tests to ensure that the pytest setup is working correctly.
 """

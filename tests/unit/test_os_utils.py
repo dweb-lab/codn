@@ -1,8 +1,7 @@
-"""
-Unit tests for codn.utils.os_utils module.
+"""Unit tests for codn.utils.os_utils module.
 
-This module contains comprehensive tests for file system operations,
-gitignore handling, and async file discovery functionality.
+This module contains comprehensive tests for file system operations, gitignore handling,
+and async file discovery functionality.
 """
 
 from unittest.mock import patch
@@ -12,7 +11,7 @@ import pytest
 
 from codn.utils.os_utils import (
     DEFAULT_SKIP_DIRS,
-    list_all_python_files,
+    list_all_files,
     load_gitignore,
     should_ignore,
 )
@@ -259,11 +258,11 @@ class TestShouldIgnore:
         )
 
 
-class TestListAllPythonFiles:
-    """Test cases for list_all_python_files function."""
+class TestListAllFiles:
+    """Test cases for list_all_files function."""
 
     @pytest.mark.asyncio
-    async def test_simple_python_files(self, tmp_path):
+    async def test_simple_files(self, tmp_path):
         """Test discovering simple Python files."""
         # Create test files
         (tmp_path / "main.py").write_text("print('main')")
@@ -276,7 +275,7 @@ class TestListAllPythonFiles:
         (subdir / "module.py").write_text("class Module: pass")
 
         files = []
-        async for py_file in list_all_python_files(tmp_path):
+        async for py_file in list_all_files(tmp_path, "*.py"):
             files.append(py_file)
 
         # Should find 3 Python files
@@ -303,7 +302,7 @@ class TestListAllPythonFiles:
         (ignored_dir / "module.py").write_text("class Module: pass")
 
         files = []
-        async for py_file in list_all_python_files(tmp_path):
+        async for py_file in list_all_files(tmp_path, "*.py"):
             files.append(py_file)
 
         # Should only find main.py
@@ -325,7 +324,7 @@ class TestListAllPythonFiles:
         (tmp_path / "main.py").write_text("print('main')")
 
         files = []
-        async for py_file in list_all_python_files(tmp_path):
+        async for py_file in list_all_files(tmp_path):
             files.append(py_file)
 
         # Should only find main.py
@@ -345,7 +344,7 @@ class TestListAllPythonFiles:
 
         # Test with custom ignored dirs
         files = []
-        async for py_file in list_all_python_files(
+        async for py_file in list_all_files(
             tmp_path,
             ignored_dirs={"custom_ignored"},
         ):
@@ -369,7 +368,7 @@ class TestListAllPythonFiles:
         (deep_path / "l3.py").write_text("# Level 3")
 
         files = []
-        async for py_file in list_all_python_files(tmp_path):
+        async for py_file in list_all_files(tmp_path, "*.py"):
             files.append(py_file)
 
         # Should find all 4 files
@@ -384,7 +383,7 @@ class TestListAllPythonFiles:
     async def test_empty_directory(self, tmp_path):
         """Test with empty directory."""
         files = []
-        async for py_file in list_all_python_files(tmp_path):
+        async for py_file in list_all_files(tmp_path):
             files.append(py_file)
 
         assert len(files) == 0
@@ -398,7 +397,7 @@ class TestListAllPythonFiles:
         (tmp_path / "script.sh").write_text("#!/bin/bash")
 
         files = []
-        async for py_file in list_all_python_files(tmp_path):
+        async for py_file in list_all_files(tmp_path, "*.py"):
             files.append(py_file)
 
         assert len(files) == 0
@@ -420,7 +419,7 @@ class TestListAllPythonFiles:
             symlinks_supported = False
 
         files = []
-        async for py_file in list_all_python_files(tmp_path):
+        async for py_file in list_all_files(tmp_path):
             files.append(py_file)
 
         if symlinks_supported:
@@ -441,7 +440,7 @@ class TestListAllPythonFiles:
         (tmp_path / "normal.py").write_text("# Normal file")
 
         files = []
-        async for py_file in list_all_python_files(tmp_path):
+        async for py_file in list_all_files(tmp_path):
             files.append(py_file)
 
         # Should find all 3 files
@@ -462,7 +461,7 @@ class TestListAllPythonFiles:
                 (dir_path / f"file_{j}.py").write_text(f"# File {i}-{j}")
 
         files = []
-        async for py_file in list_all_python_files(tmp_path):
+        async for py_file in list_all_files(tmp_path, "*.py"):
             files.append(py_file)
 
         # Should find 50 files (10 dirs * 5 files each)
@@ -475,7 +474,7 @@ class TestListAllPythonFiles:
         (tmp_path / "test.py").write_text("print('test')")
 
         files = []
-        async for py_file in list_all_python_files(str(tmp_path)):
+        async for py_file in list_all_files(str(tmp_path)):
             files.append(py_file)
 
         assert len(files) == 1
@@ -487,7 +486,7 @@ class TestListAllPythonFiles:
         # This test runs in the current directory
         # We just check that it doesn't raise an exception
         count = 0
-        async for py_file in list_all_python_files():
+        async for py_file in list_all_files("", "*.py"):
             count += 1
             if count > 10:  # Limit to avoid processing too many files
                 break
@@ -536,7 +535,7 @@ class TestEdgeCasesAndIntegration:
         # This test is tricky to implement portably
         # We'll just ensure the function handles errors gracefully
         files = []
-        async for py_file in list_all_python_files(tmp_path):
+        async for py_file in list_all_files(tmp_path, "*.py"):
             files.append(py_file)
 
         # Should find at least the accessible file
@@ -556,7 +555,7 @@ class TestEdgeCasesAndIntegration:
             pytest.skip("Symlinks not supported on this system")
 
         files = []
-        async for py_file in list_all_python_files(tmp_path):
+        async for py_file in list_all_files(tmp_path, "*.py"):
             files.append(py_file)
 
         # Should handle broken symlinks gracefully
@@ -573,9 +572,9 @@ class TestEdgeCasesAndIntegration:
 
         # Run multiple concurrent searches
         tasks = [
-            list_all_python_files(tmp_path),
-            list_all_python_files(tmp_path),
-            list_all_python_files(tmp_path),
+            list_all_files(tmp_path, "*.py"),
+            list_all_files(tmp_path, "*.py"),
+            list_all_files(tmp_path, "*.py"),
         ]
 
         results = []

@@ -1,5 +1,4 @@
-"""
-Global pytest configuration and fixtures.
+"""Global pytest configuration and fixtures.
 
 This file contains shared fixtures and configuration for all tests.
 """
@@ -14,7 +13,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from loguru import logger
 
-from codn.utils.pyright_lsp_client import LSPConfig, PyrightLSPClient, path_to_file_uri
+from codn.utils.base_lsp_client import LSPConfig, BaseLSPClient, path_to_file_uri
 
 
 # ==================== Test Configuration ====================
@@ -157,7 +156,7 @@ def lsp_config() -> LSPConfig:
 @pytest.fixture
 async def mock_lsp_client(lsp_config: LSPConfig) -> AsyncGenerator[Mock, None]:
     """Create a mock LSP client for testing."""
-    mock_client = Mock(spec=PyrightLSPClient)
+    mock_client = Mock(spec=BaseLSPClient)
     mock_client.state = Mock()
     mock_client.config = lsp_config
 
@@ -178,7 +177,7 @@ async def mock_lsp_client(lsp_config: LSPConfig) -> AsyncGenerator[Mock, None]:
 async def real_lsp_client(
     temp_dir: Path,
     lsp_config: LSPConfig,
-) -> AsyncGenerator[PyrightLSPClient, None]:
+) -> AsyncGenerator[BaseLSPClient, None]:
     """Create a real LSP client for integration tests."""
     import shutil
 
@@ -189,10 +188,10 @@ async def real_lsp_client(
         )
 
     root_uri = path_to_file_uri(str(temp_dir))
-    client = PyrightLSPClient(root_uri, lsp_config)
+    client = BaseLSPClient(root_uri, lsp_config)
 
     try:
-        await client.start()
+        await client.start(".py")
         yield client
     except Exception as e:
         pytest.skip(f"Could not start LSP client: {e}")

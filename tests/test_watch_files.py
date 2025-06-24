@@ -3,7 +3,7 @@ from pathlib import Path
 
 from watchfiles import awatch
 
-from codn.utils.pyright_lsp_client import PyrightLSPClient, path_to_file_uri
+from codn.utils.base_lsp_client import BaseLSPClient, path_to_file_uri
 
 
 async def watch_and_sync(client, project_path):
@@ -22,7 +22,7 @@ async def watch_and_sync(client, project_path):
 
 async def main():
     root_path = Path().resolve()
-    client = PyrightLSPClient(path_to_file_uri(str(root_path)))
+    client = BaseLSPClient(path_to_file_uri(str(root_path)))
     await client.start()
 
     # 启动监听文件变化任务
