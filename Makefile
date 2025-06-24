@@ -1,7 +1,7 @@
 # Makefile for codn project
 # Provides convenient commands for testing, linting, and development
 
-.PHONY: help test test-unit test-integration test-slow test-cov test-html test-watch clean clean-all lint format install dev-install check all
+.PHONY: help test test-unit test-integration test-slow test-cov test-html test-watch clean clean-all lint format install dev-install check all bandit
 
 # Default target
 help:
@@ -149,17 +149,23 @@ ruff-format-check:
 
 mypy-check:
 	@echo "🔍 Running mypy type checking..."
-	@command -v uv >/dev/null 2>&1 && uv run mypy codn --ignore-missing-imports || mypy codn --ignore-missing-imports
+	@command -v uv >/dev/null 2>&1 && uv run mypy . || mypy .
 	@echo "✅ Type checking complete!"
+
+
+bandit:
+	@echo "🛡️ Running Bandit security checks..."
+	@bandit -r codn -q
+	@echo "✅ Bandit check complete!"
 
 # Composite linting targets
 ruff-check: ruff-lint ruff-format-check
 	@echo "🎉 All ruff checks passed! Ready to commit."
 
-lint: ruff-lint mypy-check
+lint: ruff-lint mypy-check bandit
 	@echo "✅ Linting complete!"
 
-lint-all: ruff-lint ruff-format-check mypy-check
+lint-all: ruff-lint ruff-format-check mypy-check bandit
 	@echo "🎉 All linting checks passed!"
 
 # Fast pre-commit checks (using local ruff, no network required)
