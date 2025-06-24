@@ -233,11 +233,22 @@ class BaseLSPClient:
     async def _read_body(self, length: int) -> Optional[Dict[str, Any]]:
         if not self.proc or not self.proc.stdout:
             return None
+
+        data = bytearray()
+        remaining = length
         try:
-            body = await self.proc.stdout.read(length)
-            if not body:
+            while remaining > 0:
+                chunk = await self.proc.stdout.read(remaining)
+                if not chunk:  # 流结束或读取失败
+                    break
+                data.extend(chunk)
+                remaining -= len(chunk)
+
+            if len(data) != length:
+                logger.error(f"Expected {length} bytes but got {len(data)} bytes")
                 return None
-            return json.loads(body.decode("utf-8", errors="replace"))
+
+            return json.loads(data.decode("utf-8", errors="replace"))
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON message: {e}")
             return None
@@ -648,22 +659,16 @@ async def get_client(path_str: str):
         logger.error(f"Failed to detect dominant language for {path_str}")
         raise ValueError("Failed to detect dominant language")
     lang = langs[0]
-    logger.info(f"Detected dominant language: {lang}")
+    logger.info(f"Detected dominant language: {lang} for path: {path_str}")
     root_path = Path(path_str).resolve()
     root_uri = path_to_file_uri(str(root_path))
     client = BaseLSPClient(root_uri)
     await client.start(lang)
+    logger.info(f"Started LSP client for {lang} at {root_path}")
 
     async for py_file in list_all_files(path_str, f"*{lang}"):
         str_py_file = str(py_file)
-
         if "tests/" in str_py_file or "test_" in str_py_file:
-            continue
-        if "docs/" in str_py_file:
-            continue
-        if "scripts/" in str_py_file:
-            continue
-        if "simple_ast" in str_py_file:
             continue
         content = py_file.read_text(encoding="utf-8")
         if not content:
@@ -672,6 +677,8 @@ async def get_client(path_str: str):
                 raise
             continue
         uri = path_to_file_uri(str(py_file))
+        if not content:
+            logger.error(f"Empty file: {uri}")
         await client.send_did_open(uri, content)
     return client
 
@@ -691,8 +698,146 @@ async def get_snippet(entity_name=None, path_str="."):
                 continue
             content = open(local_path).read()
             code_snippet = extract_symbol_code(sym, content)
-            # print(f"==Code Snippet:\n{code_snippet}")
+            # logger.trace(f"==Code Snippet:\n{code_snippet}")
             l_code_snippets.append(code_snippet)
+
+    await client.shutdown()
+    return l_code_snippets
+
+
+def is_needed_name(name, _search_terms):
+    pass
+
+
+def get_search_type(search_terms):
+    first_search_terms = search_terms[0]
+    if first_search_terms.endswith(".py"):
+        return "files"
+    elif ":" in first_search_terms:
+        return "symbols_with_file"
+    else:
+        return "symbols"
+
+
+async def get_snippets_by_line_nums(
+    line_nums: List[int], file_path_or_pattern: str, path_str="."
+):
+    if not line_nums or len(line_nums) != 2:
+        return []
+    start, end = line_nums
+    client = await get_client(path_str)
+    l_code_snippets = []
+    root_path = Path(path_str).resolve()
+    str_root_path = str(root_path)
+    for uri in client.open_files:
+        parsed = urlparse(uri)
+        local_path = unquote(parsed.path)
+        _local_path = local_path[len(str_root_path) + 1 :]
+        if _local_path == file_path_or_pattern:
+            content = open(local_path).read()
+            l_content = content.split("\n")
+            content = "\n".join(l_content[start:end])
+            l_code_snippets.append(content)
+
+    await client.shutdown()
+    return l_code_snippets
+
+
+def match_pattern(file_path: str, patten: str) -> bool:
+    path = Path(file_path)
+    # 注意 Path.match 是从路径的末尾开始匹配，且不支持从中间任意位置匹配
+    # 所以要确保 file_path 是相对于某个根目录的路径
+    return path.match(patten)
+
+
+async def get_filenames_by_pattern(path_str=".", pattern=""):
+    client = await get_client(path_str)
+    root_path = Path(path_str).resolve()
+    str_root_path = str(root_path)
+
+    filenames = []
+    for uri in client.open_files:
+        parsed = urlparse(uri)
+        local_path = unquote(parsed.path)
+        _local_path = local_path[len(str_root_path) + 1 :]
+        if pattern and not match_pattern(_local_path, pattern):
+            filenames.append(_local_path)
+    await client.shutdown()
+    return filenames
+
+
+async def get_snippets(search_terms: List[str], path_str=".", file_path_or_pattern=""):
+    if not search_terms:
+        return []
+    search_type = get_search_type(search_terms)
+    filenames = [j.split(":")[0] for j in search_terms]
+    _search_terms = set(search_terms)
+    _filenames = set(filenames)
+    logger.info(f"path_str {path_str}")
+
+    client = await get_client(path_str)
+    l_code_snippets = []
+    root_path = Path(path_str).resolve()
+    str_root_path = str(root_path)
+    if search_type == "files":
+        for uri in client.open_files:
+            parsed = urlparse(uri)
+            local_path = unquote(parsed.path)
+            _local_path = local_path[len(str_root_path) + 1 :]
+            if _local_path not in _search_terms:
+                continue
+            if file_path_or_pattern and not match_pattern(
+                _local_path, file_path_or_pattern
+            ):
+                continue
+            content = open(local_path).read()
+            l_code_snippets.append(content)
+
+    if search_type == "symbols":
+        for uri in client.open_files:
+            symbols = await client.send_document_symbol(uri)
+            parsed = urlparse(uri)
+            local_path = unquote(parsed.path)
+            _local_path = local_path[len(str_root_path) + 1 :]
+            if file_path_or_pattern and not match_pattern(
+                _local_path, file_path_or_pattern
+            ):
+                continue
+            for sym in symbols:
+                name = sym["name"]
+                if name not in _search_terms:
+                    continue
+                content = open(local_path).read()
+                code_snippet = extract_symbol_code(sym, content)
+                l_code_snippets.append(code_snippet)
+
+    if search_type == "symbols_with_file":
+        root_path = Path(path_str).resolve()
+        str_root_path = str(root_path)
+        for uri in client.open_files:
+            symbols = await client.send_document_symbol(uri)
+            parsed = urlparse(uri)
+            local_path = unquote(parsed.path)
+            _local_path = local_path[len(str_root_path) + 1 :]
+            if _local_path not in _filenames:
+                continue
+            if file_path_or_pattern and not match_pattern(
+                _local_path, file_path_or_pattern
+            ):
+                continue
+            for sym in symbols:
+                name = sym["name"]
+                full_name = name
+                if "containerName" in sym:
+                    container_name = sym["containerName"]
+                    full_name = f"{container_name}.{name}"
+
+                full_name_with_file = f"{_local_path}:{full_name}"
+                if full_name_with_file not in _search_terms:
+                    continue
+                content = open(local_path).read()
+                code_snippet = extract_symbol_code(sym, content)
+                l_code_snippets.append(code_snippet)
 
     await client.shutdown()
     return l_code_snippets
@@ -743,7 +888,6 @@ async def get_refs(entity_name=None, path_str="."):
 
             # func_char wrong
             if func_char not in [0, 4, 8, 12]:
-                print(func_char)
                 raise ValueError(
                     f"func: {func_name} in {uri_short}:{func_line + 1} func_char is {func_char}"
                 )
@@ -825,9 +969,186 @@ async def get_refs(entity_name=None, path_str="."):
                 #     continue
                 invoke_info = f"{ref_uri_short}:{line + 1}:{_func_name}\tinvoke\t{uri_short}:{func_line}:{func_name}"
                 if invoke_info not in l_refs:
-                    # print(invoke_info)
+                    # logger.trace(invoke_info)
                     l_refs.add(invoke_info)
                 continue
 
     await client.shutdown()
     return l_refs
+
+
+async def _traverse(client, len_root_uri, start_entities, root_uri):
+    str_start_entities = "|".join(start_entities)
+    is_full_path = False
+    clean_start_entities = []
+    if ":" in str_start_entities:
+        is_full_path = True
+        clean_start_entities = [
+            f"{j.split(':')[0]}:{j.split(':')[2]}" for j in start_entities
+        ]
+    l_refs = set()
+    for uri in client.open_files:
+        uri_short = uri[len_root_uri + 1 :]
+        symbols = await client.send_document_symbol(uri)
+
+        for sym in symbols:
+            name = sym["name"]
+            # logger.info(f"start_entities {start_entities} name {name} uri {uri}")
+            if not is_full_path:
+                if start_entities and name not in start_entities:
+                    continue
+            else:
+                full_name = f"{uri_short}:{name}"
+                if clean_start_entities and full_name not in clean_start_entities:
+                    continue
+
+            kind = sym["kind"]
+            if kind in [13, 14]:  # Variable Constant
+                continue
+            if kind not in [12, 6, 5]:  # func method class
+                raise ValueError(
+                    f"Unexpected kind value: {kind}, expected one of [12, 6, 5]"
+                )
+            if name == "__init__" and "containerName" in sym:
+                continue
+            loc = sym["location"]["range"]["start"]
+            func_line = loc["line"]
+            func_char = loc["character"]
+            full_name = name
+            if "containerName" in sym:
+                container_name = sym["containerName"]
+                full_name = f"{container_name}.{name}"
+            if name == "main":
+                continue
+            logger.trace(f"{kind} - {full_name}")
+
+            # just check find_enclosing_function
+            func_name = find_enclosing_function(symbols, func_line)
+            if func_name != name:
+                raise ValueError(f"Expected {name}, got {func_name}")
+            if not uri.startswith(root_uri):
+                continue
+
+            # func_char wrong
+            if func_char not in [0, 4, 8, 12]:
+                raise ValueError(
+                    f"func: {func_name} in {uri_short}:{func_line + 1} func_char is {func_char}"
+                )
+
+            ref_result = None
+            # logx.info(f" func: {uri}:{func_line}:{func_char}")
+            if kind in [12, 6]:
+                func_char += 4  # def
+                ref_result = await client.send_references(
+                    uri, line=func_line, character=func_char
+                )
+                if not ref_result:
+                    func_char += 6  # async
+                    ref_result = await client.send_references(
+                        uri, line=func_line, character=func_char
+                    )
+                    if not ref_result:
+                        logger.trace(
+                            f"No references found for func: {uri}:{func_line}:{func_char}"
+                        )
+                        continue
+
+            if kind in [5]:
+                func_char += 6  # class
+                ref_result = await client.send_references(
+                    uri, line=func_line, character=func_char
+                )
+                if not ref_result:
+                    func_char += 6  # async
+                    ref_result = await client.send_references(
+                        uri, line=func_line, character=func_char
+                    )
+                    if not ref_result:
+                        logger.trace(
+                            f"No references found for func: {uri}:{func_line}:{func_char}"
+                        )
+                        continue
+
+            if not ref_result:
+                raise ValueError(
+                    f"No references found for func: {uri}:{func_line}:{func_char} kind: {kind}"
+                )
+                continue
+            for i, ref in enumerate(ref_result, 1):
+                ref_uri = ref.get("uri", "<no-uri>")
+                logger.trace(f"ref_uri {ref_uri}")
+                if "tests" in ref_uri:
+                    continue
+                if "test_" in ref_uri:
+                    continue
+                range_ = ref.get("range", {})
+                start = range_.get("start", {})
+                line = start.get("line", "?")
+                character = start.get("character", "?")
+                _func_name = "?"
+                if line == "?" or character == "?":
+                    raise ValueError(
+                        f"  {i:02d}. {uri} @ Line {line}, Char {character}"
+                    )
+
+                _symbols = await client.send_document_symbol(ref_uri)
+                _func_name = find_enclosing_function(_symbols, line)
+
+                ref_uri_short = ref_uri[len_root_uri + 1 :]
+
+                if "test" in ref_uri_short:
+                    continue
+                if "docs" in ref_uri_short:
+                    continue
+                if "__init__.py" in ref_uri_short:
+                    continue
+                if "cli.py" in ref_uri_short:
+                    continue
+
+                invoke_info = f"{ref_uri_short}:{line + 1}:{_func_name}\tinvoke\t{uri_short}:{func_line}:{func_name}"
+                if invoke_info not in l_refs:
+                    l_refs.add(invoke_info)
+    return l_refs
+
+
+async def traverse(
+    start_entities,
+    entity_type_filter,
+    dependency_type_filter,
+    direction,
+    traversal_depth,
+    path_str=".",
+):
+    # Perform the traversal
+    # 暂时无视 entity_type_filter dependency_type_filter
+    l_refs = set()
+    client = await get_client(path_str)
+    root_path = Path(path_str).resolve()
+    root_uri = path_to_file_uri(str(root_path))
+    len_root_uri = len(str(root_uri))
+
+    if direction == "downstream":
+        current_depth = 1
+        # 先解决1层的
+        todo = []
+        if traversal_depth >= current_depth:
+            _l_refs = await _traverse(client, len_root_uri, start_entities, root_uri)
+            for i in list(_l_refs):
+                l_refs.add(i)
+                a, b, c = i.split("\t")
+                x, y, z = a.split(":")
+                if z != "None":
+                    todo.append(a)
+        current_depth = 2
+        while traversal_depth >= current_depth:
+            _l_refs = await _traverse(client, len_root_uri, todo, root_uri)
+            for i in list(_l_refs):
+                l_refs.add(i)
+                a, b, c = i.split("\t")
+                x, y, z = a.split(":")
+                if z != "None":
+                    todo.append(a)
+            current_depth += 1
+
+    await client.shutdown()
+    return list(l_refs)
