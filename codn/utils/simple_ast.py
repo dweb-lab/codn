@@ -168,7 +168,7 @@ def find_function_references(content: str, function_name: str) -> List[Tuple[int
     return references
 
 
-class FunctionSignature(TypedDict):
+class FunctionSignature(TypedDict, total=False):
     name: str
     args: List[str]
     is_async: bool
@@ -181,6 +181,7 @@ class FunctionSignature(TypedDict):
     return_type: Optional[str]
     line: int
     defaults: Any
+    file: Optional[str]
 
 
 def extract_function_signatures(

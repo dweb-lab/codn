@@ -11,7 +11,7 @@ from rich.progress import BarColumn, Progress, TextColumn, TimeRemainingColumn
 from rich.table import Table
 
 from ..utils.git_utils import is_valid_git_repo
-from ..utils.os_utils import list_all_python_files_sync
+from ..utils.os_utils import list_all_files_sync
 from ..utils.simple_ast import (
     extract_class_methods,
     extract_function_signatures,
@@ -83,7 +83,7 @@ def analyze_project(
 
     # Get all Python files
     ignored_dirs = set() if include_tests else {"tests", "test"}
-    python_files = list_all_python_files_sync(path, ignored_dirs=ignored_dirs)
+    python_files = list_all_files_sync(path, "*.py", ignored_dirs=ignored_dirs)
 
     if not python_files:
         console.print("[yellow]No Python files found[/yellow]")
@@ -337,7 +337,7 @@ def find_references(
 
     # Get all Python files
     ignored_dirs = set() if include_tests else {"tests", "test"}
-    python_files = list_all_python_files_sync(path, ignored_dirs=ignored_dirs)
+    python_files = list_all_files_sync(path, "*.py", ignored_dirs=ignored_dirs)
 
     if not python_files:
         console.print("[yellow]No Python files found[/yellow]")
@@ -431,7 +431,7 @@ def find_unused_imports_cmd(
 
     # Get all Python files
     ignored_dirs = set() if include_tests else {"tests", "test"}
-    python_files = list_all_python_files_sync(path, ignored_dirs=ignored_dirs)
+    python_files = list_all_files_sync(path, "*.py", ignored_dirs=ignored_dirs)
 
     if not python_files:
         console.print("[yellow]No Python files found[/yellow]")
@@ -561,7 +561,7 @@ def analyze_functions(
 
     # Get all Python files
     ignored_dirs = set() if include_tests else {"tests", "test"}
-    python_files = list_all_python_files_sync(path, ignored_dirs=ignored_dirs)
+    python_files = list_all_files_sync(path, "*.py", ignored_dirs=ignored_dirs)
 
     if not python_files:
         console.print("[yellow]No Python files found[/yellow]")
