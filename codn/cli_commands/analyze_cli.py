@@ -27,8 +27,8 @@ console = Console()
 def analyze_main(ctx: typer.Context) -> None:
     """📊 Code analysis and statistics.
 
-    Analyze your Python codebase with powerful tools for understanding code structure,
-    finding issues, and improving code quality.
+    Analyze your Python codebase with powerful tools for understanding
+    code structure, finding issues, and improving code quality.
     """
     if ctx.invoked_subcommand is None:
         show_analyze_welcome()
