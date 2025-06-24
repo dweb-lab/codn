@@ -4,7 +4,7 @@ import asttokens
 
 
 def find_enclosing_function(content: str, line: int, _character: int) -> Optional[str]:
-    """Find the name of the function or method that contains the given position.
+    """Find the function or method name at the given position.
 
     Args:
         content: Python source code
@@ -55,7 +55,7 @@ def find_enclosing_function(content: str, line: int, _character: int) -> Optiona
             self,
             node: Union[ast.FunctionDef, ast.AsyncFunctionDef],
         ) -> int:
-            """Estimate the end line of a function when end_lineno is not available."""
+            """Estimate function end line if end_lineno is missing."""
             if not node.body:
                 return getattr(node, "lineno", 1) - 1
 
