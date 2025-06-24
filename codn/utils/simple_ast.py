@@ -1,6 +1,7 @@
 import ast
 from typing import Dict, List, Optional, Tuple, Union
 import asttokens
+from typing import TypedDict, Any
 
 
 def find_enclosing_function(content: str, line: int, _character: int) -> Optional[str]:
@@ -167,9 +168,24 @@ def find_function_references(content: str, function_name: str) -> List[Tuple[int
     return references
 
 
+class FunctionSignature(TypedDict):
+    name: str
+    args: List[str]
+    is_async: bool
+    # is_generator: bool
+    # is_coroutine: bool
+    # is_decorator: bool
+    # decorators: List[str]
+    # decorators_info: List[Dict[str, Any]]
+    docstring: Optional[str]
+    return_type: Optional[str]
+    line: int
+    defaults: Any
+
+
 def extract_function_signatures(
     content: str,
-) -> List[Dict[str, object]]:
+) -> List[FunctionSignature]:
     """Extract function signatures from Python source code.
 
     Args:
@@ -183,7 +199,7 @@ def extract_function_signatures(
     except SyntaxError:
         return []
 
-    functions = []
+    functions: List[FunctionSignature] = []
 
     class FunctionVisitor(ast.NodeVisitor):
         def _extract_function_info(
@@ -216,7 +232,7 @@ def extract_function_signatures(
                 elif isinstance(node.returns, ast.Constant):
                     return_type = str(node.returns.value)
 
-            function_info = {
+            function_info: FunctionSignature = {
                 "name": node.name,
                 "line": node.lineno,
                 "args": args,

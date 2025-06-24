@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""
-Basic usage examples for codn library.
-
-This file demonstrates the core functionality of codn's AST analysis tools.
-"""
+"""Basic examples of codn's AST analysis tools."""
 
 from codn.utils.simple_ast import (
     extract_class_methods,
