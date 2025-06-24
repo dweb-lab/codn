@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2025-06-24
+
+### Added
+- **Multi-language parsing support**:
+  - Added `run_multilang_parse.py` to test snippet and reference extraction across languages
+  - Added `run_codn_graph.py` and `run_watch.py` scripts for graph-based analysis and file watching
+- **CLI Enhancements**:
+  - Introduced `codn tools` CLI for code snippet search and dependency exploration
+  - Added `lsp` command group for code understanding via Language Server Protocol
+- **LSP Improvements**:
+  - Enhanced LSP client to support snippet extraction by pattern, line number, or symbol
+  - Added support for identifying language types and grouping files by primary language
+  - Introduced `SYMBOL_KIND_MAP` and `kind_to_str` for better symbol kind interpretation
+
+### Changed
+- **Refactoring**:
+  - Unified LSP client implementation under `BaseLSPClient` and enhanced logging
+  - Replaced `list_all_python_files_sync` with a more flexible `list_all_files_sync`
+  - Generalized and simplified Pyright client logic for better multi-language support
+  - Updated tests to align with the generalized `BaseLSPClient`
+
+- **Developer Experience**:
+  - Wrapped and reformatted long docstrings across CLI, scripts, and tests
+  - Improved typing with `TypedDict` for function signatures in `simple_ast.py`
+
+### Fixed
+- Resolved Pyright attribute access issues in `simple_ast.py`
+- Ensured `asttokens` is always imported and initialized correctly
+
+### Security
+- Integrated Bandit security checks into the Makefile
+
+### Chore
+- Updated pre-commit configuration:
+  - Excluded `tests/` from Bandit scans
+  - Removed redundant or unnecessary configuration options
+  - Merged local hooks to avoid duplicate runs
+
 ## [0.1.3] - 2025-06-22
 
 ### Changed
@@ -121,7 +159,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - LSP client for static analysis integration
 - Cross-platform compatibility
 
-[Unreleased]: https://github.com/dweb-lab/codn/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/dweb-lab/codn/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/dweb-lab/codn/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/dweb-lab/codn/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/dweb-lab/codn/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/dweb-lab/codn/compare/v0.1.0...v0.1.1

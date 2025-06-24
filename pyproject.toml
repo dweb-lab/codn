@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "codn"
-version = "0.1.3"
+version = "0.1.4"
 description = "A tiny, modular library for common coding tasks."
 authors = [{ name = "askender", email = "askender43@gmail.com" }]
 readme = "README.md"
