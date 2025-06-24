@@ -9,7 +9,15 @@ from typing import Any, Dict, List, Set, Optional
 from loguru import logger
 from watchfiles import awatch
 
-PYRIGHT_COMMAND = ["pyright-langserver", "--stdio"]
+from codn.utils.os_utils import list_all_files, detect_dominant_languages
+from urllib.parse import unquote, urlparse
+
+LSP_COMMANDS = {
+    "cpp": ["clangd"],  # "--log=verbose"
+    "py": ["pyright-langserver", "--stdio"],
+    "ts": ["typescript-language-server", "--stdio"],
+    "tsx": ["typescript-language-server", "--stdio"],
+}
 DEFAULT_TIMEOUT = 30
 BUFFER_SIZE = 8192
 
@@ -36,7 +44,7 @@ class LSPConfig:
     log_level: str = "INFO"
 
 
-class PyrightLSPClient:
+class BaseLSPClient:
     def __init__(self, root_uri: str, config: Optional[LSPConfig] = None):
         self.root_uri = root_uri
         self.config = config or LSPConfig()
@@ -54,13 +62,13 @@ class PyrightLSPClient:
     def state(self) -> LSPClientState:
         return self._state
 
-    async def start(self) -> None:
+    async def start(self, lang: str) -> None:
         if self._state != LSPClientState.STOPPED:
             raise LSPError(f"Cannot start client in state: {self._state}")
 
         self._state = LSPClientState.STARTING
         try:
-            await self._start_subprocess()
+            await self._start_subprocess(lang)
             await self._initialize()
             self._state = LSPClientState.RUNNING
             logger.trace("LSP client started successfully")
@@ -69,10 +77,10 @@ class PyrightLSPClient:
             await self._cleanup()
             raise LSPError(f"Failed to start LSP client: {e}") from e
 
-    async def _start_subprocess(self) -> None:
+    async def _start_subprocess(self, lang: str) -> None:
         try:
             self.proc = await asyncio.create_subprocess_exec(
-                *PYRIGHT_COMMAND,
+                *LSP_COMMANDS[lang],
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -349,7 +357,7 @@ class PyrightLSPClient:
         self,
         uri: str,
         content: str,
-        language_id: str = "python",
+        language_id: str = "typescript",
     ) -> None:
         if not uri or not isinstance(content, str):
             raise ValueError("Invalid parameters for didOpen")
@@ -589,7 +597,7 @@ def _should_process_file(path_obj: Path) -> bool:
 
 
 async def _handle_file_change(
-    client: PyrightLSPClient,
+    client: BaseLSPClient,
     change_type,
     file_path: Path,
 ) -> None:
@@ -613,7 +621,7 @@ async def _handle_file_change(
             logger.error(f"Error handling file change {file_path}: {e}")
 
 
-async def watch_and_sync(client: PyrightLSPClient, root_path: Path) -> None:
+async def watch_and_sync(client: BaseLSPClient, root_path: Path) -> None:
     if not root_path.exists():
         logger.error(f"Root path does not exist: {root_path}")
         return
@@ -632,3 +640,194 @@ async def watch_and_sync(client: PyrightLSPClient, root_path: Path) -> None:
     except Exception as e:
         if not client._shutdown_event.is_set():
             logger.error(f"File watcher error: {e}")
+
+
+async def get_client(path_str: str):
+    langs = detect_dominant_languages(path_str)
+    if not langs:
+        logger.error(f"Failed to detect dominant language for {path_str}")
+        raise ValueError("Failed to detect dominant language")
+    lang = langs[0]
+    logger.info(f"Detected dominant language: {lang}")
+    root_path = Path(path_str).resolve()
+    root_uri = path_to_file_uri(str(root_path))
+    client = BaseLSPClient(root_uri)
+    await client.start(lang)
+
+    async for py_file in list_all_files(path_str, f"*{lang}"):
+        str_py_file = str(py_file)
+
+        if "tests/" in str_py_file or "test_" in str_py_file:
+            continue
+        if "docs/" in str_py_file:
+            continue
+        if "scripts/" in str_py_file:
+            continue
+        if "simple_ast" in str_py_file:
+            continue
+        content = py_file.read_text(encoding="utf-8")
+        if not content:
+            if not str_py_file.endswith("__init__.py"):
+                logger.error(str_py_file)
+                raise
+            continue
+        uri = path_to_file_uri(str(py_file))
+        await client.send_did_open(uri, content)
+    return client
+
+
+async def get_snippet(entity_name=None, path_str="."):
+    logger.warning(path_str)
+    client = await get_client(path_str)
+    l_code_snippets = []
+    for uri in client.open_files:
+        symbols = await client.send_document_symbol(uri)
+        parsed = urlparse(uri)
+        local_path = unquote(parsed.path)
+
+        for sym in symbols:
+            name = sym["name"]
+            if entity_name and name != entity_name:
+                continue
+            content = open(local_path).read()
+            code_snippet = extract_symbol_code(sym, content)
+            # print(f"==Code Snippet:\n{code_snippet}")
+            l_code_snippets.append(code_snippet)
+
+    await client.shutdown()
+    return l_code_snippets
+
+
+async def get_refs(entity_name=None, path_str="."):
+    l_refs = set()
+    client = await get_client(path_str)
+
+    root_path = Path(path_str).resolve()
+    root_uri = path_to_file_uri(str(root_path))
+    len_root_uri = len(str(root_uri))
+
+    for uri in client.open_files:
+        uri_short = uri[len_root_uri + 1 :]
+        symbols = await client.send_document_symbol(uri)
+
+        for sym in symbols:
+            name = sym["name"]
+            if entity_name and name != entity_name:
+                continue
+            kind = sym["kind"]
+            if kind in [13, 14]:  # Variable Constant
+                continue
+            if kind not in [12, 6, 5]:  # func method class
+                raise ValueError(
+                    f"Unexpected kind value: {kind}, expected one of [12, 6, 5]"
+                )
+            if name == "__init__" and "containerName" in sym:
+                continue
+            loc = sym["location"]["range"]["start"]
+            func_line = loc["line"]
+            func_char = loc["character"]
+            full_name = name
+            if "containerName" in sym:
+                container_name = sym["containerName"]
+                full_name = f"{container_name}.{name}"
+            if name == "main":
+                continue
+            logger.trace(f"{kind} - {full_name}")
+
+            # just check find_enclosing_function
+            func_name = find_enclosing_function(symbols, func_line)
+            if func_name != name:
+                raise ValueError(f"Expected {name}, got {func_name}")
+            if not uri.startswith(root_uri):
+                continue
+
+            # func_char wrong
+            if func_char not in [0, 4, 8, 12]:
+                print(func_char)
+                raise ValueError(
+                    f"func: {func_name} in {uri_short}:{func_line + 1} func_char is {func_char}"
+                )
+
+            ref_result = None
+            # logx.info(f" func: {uri}:{func_line}:{func_char}")
+            if kind in [12, 6]:
+                func_char += 4  # def
+                ref_result = await client.send_references(
+                    uri, line=func_line, character=func_char
+                )
+                if not ref_result:
+                    func_char += 6  # async
+                    ref_result = await client.send_references(
+                        uri, line=func_line, character=func_char
+                    )
+                    if not ref_result:
+                        logger.trace(
+                            f"No references found for func: {uri}:{func_line}:{func_char}"
+                        )
+                        continue
+
+            if kind in [5]:
+                func_char += 6  # class
+                ref_result = await client.send_references(
+                    uri, line=func_line, character=func_char
+                )
+                if not ref_result:
+                    func_char += 6  # async
+                    ref_result = await client.send_references(
+                        uri, line=func_line, character=func_char
+                    )
+                    if not ref_result:
+                        logger.trace(
+                            f"No references found for func: {uri}:{func_line}:{func_char}"
+                        )
+                        continue
+
+            if not ref_result:
+                raise ValueError(
+                    f"No references found for func: {uri}:{func_line}:{func_char} kind: {kind}"
+                )
+                continue
+            for i, ref in enumerate(ref_result, 1):
+                ref_uri = ref.get("uri", "<no-uri>")
+                logger.trace(f"ref_uri {ref_uri}")
+                if "tests" in ref_uri:
+                    continue
+                if "test_" in ref_uri:
+                    continue
+                range_ = ref.get("range", {})
+                start = range_.get("start", {})
+                line = start.get("line", "?")
+                character = start.get("character", "?")
+                _func_name = "?"
+                if line == "?" or character == "?":
+                    raise ValueError(
+                        f"  {i:02d}. {uri} @ Line {line}, Char {character}"
+                    )
+
+                _symbols = await client.send_document_symbol(ref_uri)
+                _func_name = find_enclosing_function(_symbols, line)
+                # if not _func_name:  # import? or direct use
+                #     logger.error(f"no _func_name  {i:02d}. {uri} @ Line {line}, Char {character}")
+                #     continue
+
+                ref_uri_short = ref_uri[len_root_uri + 1 :]
+
+                if "test" in ref_uri_short:
+                    continue
+                if "docs" in ref_uri_short:
+                    continue
+                if "__init__.py" in ref_uri_short:
+                    continue
+                if "cli.py" in ref_uri_short:
+                    continue
+
+                # if ref_uri_short == uri_short: # 是否分析文件内部的调用
+                #     continue
+                invoke_info = f"{ref_uri_short}:{line + 1}:{_func_name}\tinvoke\t{uri_short}:{func_line}:{func_name}"
+                if invoke_info not in l_refs:
+                    # print(invoke_info)
+                    l_refs.add(invoke_info)
+                continue
+
+    await client.shutdown()
+    return l_refs
