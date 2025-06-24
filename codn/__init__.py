@@ -14,7 +14,7 @@ __email__ = "askender43@gmail.com"
 
 # Import main utilities for convenient access
 from .utils.git_utils import is_valid_git_repo
-from .utils.os_utils import list_all_python_files, load_gitignore, should_ignore
+from .utils.os_utils import list_all_files, load_gitignore, should_ignore
 from .utils.simple_ast import (
     extract_class_methods,
     extract_function_signatures,
@@ -35,7 +35,7 @@ __all__ = [
     "find_function_references",
     "find_unused_imports",
     "is_valid_git_repo",
-    "list_all_python_files",
+    "list_all_files",
     "load_gitignore",
     "should_ignore",
 ]
