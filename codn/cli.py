@@ -5,7 +5,7 @@ import typer
 from rich.console import Console
 
 from codn import __version__
-from codn.cli_commands import analyze_cli, git_cli
+from codn.cli_commands import analyze_cli, git_cli, lsp_cli
 from codn.cli_commands.analyze_cli import (
     analyze_functions,
     analyze_project,
@@ -31,6 +31,11 @@ app.add_typer(
     analyze_cli.app,
     name="analyze",
     help="📊 Code analysis and statistics",
+)
+app.add_typer(
+    lsp_cli.app,
+    name="lsp",
+    help="📊 Code lsp and understanding",
 )
 
 
