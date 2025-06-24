@@ -3,34 +3,54 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 from watchfiles import awatch
 
-from codn.utils.os_utils import list_all_python_files
-from codn.utils.pyright_lsp_client import (
-    PyrightLSPClient,
+from codn.utils.os_utils import list_all_files
+
+# from codn.utils.pyright_lsp_client import (
+from codn.utils.base_lsp_client import (
+    BaseLSPClient,
     extract_inheritance_relations,
     extract_symbol_code,
     find_enclosing_function,
     path_to_file_uri,
 )
 
-from loguru import logger
+
 import sys
+import os
+from loguru import logger
+
+
+def formatter(record):
+    relpath = os.path.relpath(record["file"].path)
+    message = record["message"]
+    # 显式防止 message 中的 {} 被 loguru 误解析
+    message = message.replace("{", "{{").replace("}", "}}")
+
+    return (
+        f"<green>{record['time']:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+        f"<level>{record['level'].name:<8}</level> | "
+        f"<cyan>{relpath}:{record['line']}</cyan> "
+        f"<magenta>{record['function']}</magenta> - "
+        f"{message}\n"
+    )
+
 
 logger.remove()
-logger.add(sys.stdout, level="WARNING")
+logger.add(sys.stderr, format=formatter, level="DEBUG", colorize=True)
 logx = logger
 
 
-async def watch_and_sync(client, project_path):
+# 特殊情况，pyright无法分析出来
+# async def watch_and_sync2(client: BaseLSPClient, project_path):
+async def watch_and_sync2(client, project_path):
     async for changes in awatch(project_path):
         for change_type, changed_path in changes:
             uri = path_to_file_uri(changed_path)
             if change_type.name in ("added", "modified"):
                 with open(changed_path, encoding="utf-8") as f:
                     content = f.read()
-                # 这里假设客户端有 send_did_open 和 send_did_change 方法
                 await client.send_did_open(uri, content)
             elif change_type.name == "deleted":
-                # 发送关闭通知
                 await client.send_did_close(uri)
 
 
@@ -51,9 +71,6 @@ async def test_get_refs(entity_name=None):
     for uri in client.open_files:
         uri_short = uri[len_root_uri + 1 :]
         symbols = await client.send_document_symbol(uri)
-        parsed = urlparse(uri)
-        local_path = unquote(parsed.path)
-        content = open(local_path).read()
 
         for sym in symbols:
             name = sym["name"]
@@ -94,7 +111,7 @@ async def test_get_refs(entity_name=None):
                 )
 
             ref_result = None
-            logx.info(f" func: {uri}:{func_line}:{func_char}")
+            logx.trace(f" func: {uri}:{func_line}:{func_char}")
             if kind in [12, 6]:
                 func_char += 4  # def
                 ref_result = await client.send_references(
@@ -132,6 +149,7 @@ async def test_get_refs(entity_name=None):
                     f"No references found for func: {uri}:{func_line}:{func_char} kind: {kind}"
                 )
                 continue
+            # logx.warning(f"ref_result {json.dumps(ref_result, indent=2)}")
             for i, ref in enumerate(ref_result, 1):
                 ref_uri = ref.get("uri", "<no-uri>")
                 # print(f'ref_uri {ref_uri}')
@@ -172,17 +190,13 @@ async def test_get_refs(entity_name=None):
                     l_refs.add(invoke_info)
                 continue
 
-            if 0:
-                code_snippet = extract_symbol_code(sym, content)
-                print(f"==Code Snippet:\n{code_snippet}")
-
     await client.shutdown()
 
 
 async def get_client(root_uri: str):
-    client = PyrightLSPClient(root_uri)
-    await client.start()
-    async for py_file in list_all_python_files("."):
+    client = BaseLSPClient(root_uri)
+    await client.start("py")
+    async for py_file in list_all_files(".", "*.py"):
         str_py_file = str(py_file)
         if "tests/" in str_py_file or "test_" in str_py_file:
             continue
@@ -268,9 +282,9 @@ async def test_get_superclass(class_name):
 if __name__ == "__main__":
     # asyncio.run(test_get_refs())
     # asyncio.run(test_get_refs('find_enclosing_function'))
-    # asyncio.run(test_get_refs('list_all_python_files'))
-    asyncio.run(test_get_refs("extract_inheritance_relations"))
-    # asyncio.run(test_get_refs("send_did_open"))
+    # asyncio.run(test_get_refs('list_all_files'))
+    # asyncio.run(test_get_refs("extract_inheritance_relations"))
+    asyncio.run(test_get_refs("send_did_open"))
     # asyncio.run(test_get_snippet("send_did_open"))
     # asyncio.run(test_get_superclasses())
     # asyncio.run(test_get_superclass("LSPClientState"))
