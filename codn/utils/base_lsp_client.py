@@ -6,15 +6,19 @@ from enum import Enum
 from itertools import count
 from pathlib import Path
 from typing import Any, Dict, List, Set, Optional
+from typing import Callable, Awaitable, Tuple
 from loguru import logger
 from watchfiles import awatch
-
+from asyncio import Semaphore, Queue, create_task, gather
 from codn.utils.os_utils import list_all_files, detect_dominant_languages
 from urllib.parse import unquote, urlparse
+import time
+from codn.utils.os_utils import LANG_TO_LANGUAGE
 
 LSP_COMMANDS = {
-    "cpp": ["clangd"],  # "--log=verbose"
-    "py": ["pyright-langserver", "--stdio"],
+    "cpp": ["clangd"],  # "--log=verbose" "--background-index", "--pch-storage=memory"
+    "c": ["clangd"],
+    "py": ["pyright-langserver", "--stdio"],  # ["pylsp"], # slow
     "ts": ["typescript-language-server", "--stdio"],
     "tsx": ["typescript-language-server", "--stdio"],
 }
@@ -57,6 +61,7 @@ class BaseLSPClient:
         self._tasks: Set[asyncio.Task] = set()
         self._shutdown_event = asyncio.Event()
         self._state = LSPClientState.STOPPED
+        self.file_states: Dict[str, Dict[str, Any]] = {}
 
     @property
     def state(self) -> LSPClientState:
@@ -155,6 +160,7 @@ class BaseLSPClient:
 
             return result.get("result") if isinstance(result, dict) else result
         except asyncio.TimeoutError:
+            logger.error(f"Request {method} (id: {msg_id}) timed out")
             raise LSPError(f"Request {method} (id: {msg_id}) timed out")
         except Exception as e:
             if isinstance(e, LSPError):
@@ -309,11 +315,16 @@ class BaseLSPClient:
         uri: str,
         action: str,
         content: str = "",
-        language_id: str = "python",
+        language_id: str = "",
     ) -> None:
         """Unified file state management."""
         async with self._lock:
             if action == "open":
+                self.file_states[uri] = {
+                    "content": content,
+                    "language_id": language_id,
+                    "status": "open",
+                }
                 if uri in self.open_files:
                     self.file_versions[uri] = self.file_versions.get(uri, 0) + 1
                     await self._notify(
@@ -341,6 +352,11 @@ class BaseLSPClient:
                     },
                 )
             elif action == "change":
+                self.file_states[uri] = {
+                    "content": content,
+                    "language_id": language_id,
+                    "status": "change",
+                }
                 if uri not in self.open_files:
                     await self._manage_file_state(uri, "open", content)
                     return
@@ -364,11 +380,18 @@ class BaseLSPClient:
                         {"textDocument": {"uri": uri}},
                     )
 
+    async def read_file(self, uri: str) -> str:
+        """根据uri读取当前缓存的文件内容，如果文件不存在或未打开，返回None。"""
+        state = self.file_states.get(uri, {})
+        if state and "content" in state:
+            return state["content"]
+        return ""
+
     async def send_did_open(
         self,
         uri: str,
         content: str,
-        language_id: str = "typescript",
+        language_id: str = "",
     ) -> None:
         if not uri or not isinstance(content, str):
             raise ValueError("Invalid parameters for didOpen")
@@ -378,6 +401,98 @@ class BaseLSPClient:
         if not uri or not isinstance(content, str):
             raise ValueError("Invalid parameters for didChange")
         await self._manage_file_state(uri, "change", content)
+
+    async def stream_requests(
+        self,
+        method: Callable[..., Awaitable[Any]],
+        args_list: List[Tuple[Any, ...]],
+        *,
+        max_concurrency: int = 10,
+        show_progress: bool = True,
+        progress_every: int = 10,  # 每N个任务打印一次
+        progress_interval: float = 1.0,  # 最小打印间隔（秒）
+    ) -> List[Any]:
+        total = len(args_list)
+        semaphore = Semaphore(max_concurrency)
+        queue: Queue[Tuple[int, Any]] = Queue()
+        results = [None] * total
+        completed = 0
+        last_print_time = time.perf_counter()
+        start_time = last_print_time
+        printed = False
+
+        async def worker(index: int, args: Tuple[Any, ...]):
+            async with semaphore:
+                try:
+                    result = await method(*args)
+                    await queue.put((index, result))
+                except Exception as e:
+                    logger.error(f"Request failed at index {index}: {e}")
+                    await queue.put((index, None))
+
+        tasks = [create_task(worker(i, args)) for i, args in enumerate(args_list)]
+
+        for _ in range(total):
+            index, result = await queue.get()
+            results[index] = result
+            completed += 1
+
+            if show_progress:
+                now = time.perf_counter()
+                if (
+                    completed % progress_every == 0
+                    or (now - last_print_time) >= progress_interval
+                ):
+                    elapsed = now - start_time
+                    speed = completed / elapsed if elapsed > 0 else 0
+                    percent = (completed / total) * 100
+                    eta = (total - completed) / speed if speed > 0 else float("inf")
+                    print(
+                        f"\rProgress: {completed}/{total} ({percent:.1f}%) "
+                        f"| Elapsed: {elapsed:.1f}s "
+                        f"| Speed: {speed:.2f}/s "
+                        f"| ETA: {eta:.1f}s",
+                        end="",
+                        flush=True,
+                    )
+                    printed = True
+                    last_print_time = now
+
+        if show_progress and printed:
+            print()
+
+        await gather(*tasks, return_exceptions=True)
+        return results
+
+    async def batch_requests(
+        self,
+        method: Callable[..., Awaitable[Any]],
+        args_list: List[Tuple[Any, ...]],
+        *,
+        max_concurrency: int = 100,
+    ) -> List[Any]:
+        """批量并发执行多个请求（如 send_references 等）
+
+        Args:
+            method: 类似 self.send_references 的方法
+            args_list: 每次调用方法所需的参数元组
+            max_concurrency: 最大并发数
+
+        Returns:
+            各请求的响应结果，顺序与输入顺序一致
+        """
+        semaphore = asyncio.Semaphore(max_concurrency)
+
+        async def _run_with_semaphore(args: Tuple[Any, ...]) -> Any:
+            async with semaphore:
+                try:
+                    return await method(*args)
+                except Exception as e:
+                    logger.error(f"Request failed: {e}")
+                    return None
+
+        tasks = [asyncio.create_task(_run_with_semaphore(args)) for args in args_list]
+        return await asyncio.gather(*tasks)
 
     async def send_did_close(self, uri: str) -> None:
         if not uri:
@@ -659,32 +774,36 @@ async def get_client(path_str: str):
         logger.error(f"Failed to detect dominant language for {path_str}")
         raise ValueError("Failed to detect dominant language")
     lang = langs[0]
-    logger.info(f"Detected dominant language: {lang} for path: {path_str}")
+    logger.trace(f"Detected dominant language: {lang} for path: {path_str}")
     root_path = Path(path_str).resolve()
     root_uri = path_to_file_uri(str(root_path))
     client = BaseLSPClient(root_uri)
     await client.start(lang)
-    logger.info(f"Started LSP client for {lang} at {root_path}")
+    logger.debug(f"Started LSP client for {lang} at {root_path}")
+    # if lang=='c':
+    #     lang = 'c,*.h'
+    language_id = LANG_TO_LANGUAGE.get(lang, lang)
+    # print(lang, language_id)
+    if lang == "cpp":
+        lang = "cpp,*.hpp"
 
-    async for py_file in list_all_files(path_str, f"*{lang}"):
+    async for py_file in list_all_files(path_str, f"*.{lang}"):
         str_py_file = str(py_file)
         if "tests/" in str_py_file or "test_" in str_py_file:
             continue
         content = py_file.read_text(encoding="utf-8")
         if not content:
-            if not str_py_file.endswith("__init__.py"):
-                logger.error(str_py_file)
-                raise
+            # if not str_py_file.endswith("__init__.py"):
+            #     logger.warning(f"file:{str_py_file} is empty")
             continue
         uri = path_to_file_uri(str(py_file))
         if not content:
             logger.error(f"Empty file: {uri}")
-        await client.send_did_open(uri, content)
+        await client.send_did_open(uri, content, language_id)
     return client
 
 
 async def get_snippet(entity_name=None, path_str="."):
-    logger.warning(path_str)
     client = await get_client(path_str)
     l_code_snippets = []
     for uri in client.open_files:
@@ -851,6 +970,7 @@ async def get_refs(entity_name=None, path_str="."):
     root_uri = path_to_file_uri(str(root_path))
     len_root_uri = len(str(root_uri))
 
+    n_symbols = 0
     for uri in client.open_files:
         uri_short = uri[len_root_uri + 1 :]
         symbols = await client.send_document_symbol(uri)
@@ -860,7 +980,7 @@ async def get_refs(entity_name=None, path_str="."):
             if entity_name and name != entity_name:
                 continue
             kind = sym["kind"]
-            if kind in [13, 14]:  # Variable Constant
+            if kind in [13, 14, 10, 8]:  # Variable Constant Enum Field
                 continue
             if kind not in [12, 6, 5]:  # func method class
                 raise ValueError(
@@ -882,12 +1002,15 @@ async def get_refs(entity_name=None, path_str="."):
             # just check find_enclosing_function
             func_name = find_enclosing_function(symbols, func_line)
             if func_name != name:
-                raise ValueError(f"Expected {name}, got {func_name}")
+                continue
+                # raise ValueError(f"Expected {name}, got {func_name}")
+
             if not uri.startswith(root_uri):
                 continue
 
             # func_char wrong
-            if func_char not in [0, 4, 8, 12]:
+            # if func_char not in [0, 4, 8, 12, 16, 20, 24]:
+            if func_char not in [0, 1, 4, 8, 12, 16, 20, 24]:
                 raise ValueError(
                     f"func: {func_name} in {uri_short}:{func_line + 1} func_char is {func_char}"
                 )
@@ -930,7 +1053,7 @@ async def get_refs(entity_name=None, path_str="."):
                 raise ValueError(
                     f"No references found for func: {uri}:{func_line}:{func_char} kind: {kind}"
                 )
-                continue
+            n_symbols += 1
             for i, ref in enumerate(ref_result, 1):
                 ref_uri = ref.get("uri", "<no-uri>")
                 logger.trace(f"ref_uri {ref_uri}")
@@ -967,13 +1090,217 @@ async def get_refs(entity_name=None, path_str="."):
 
                 # if ref_uri_short == uri_short: # 是否分析文件内部的调用
                 #     continue
+                if _func_name is None:
+                    continue
                 invoke_info = f"{ref_uri_short}:{line + 1}:{_func_name}\tinvoke\t{uri_short}:{func_line}:{func_name}"
                 if invoke_info not in l_refs:
                     # logger.trace(invoke_info)
                     l_refs.add(invoke_info)
-                continue
+
+                    if len(l_refs) % 1000 == 0:
+                        logger.info(f"Processed {len(l_refs)} references")
 
     await client.shutdown()
+    print(n_symbols)
+    return l_refs
+
+
+async def get_refs_clean(entity_name=None, path_str="."):
+    l_refs = set()
+    client = await get_client(path_str)
+
+    root_path = Path(path_str).resolve()
+    root_uri = path_to_file_uri(str(root_path))
+    len_root_uri = len(str(root_uri))
+    # raw
+    # for uri in client.open_files:
+    #     await client.send_document_symbol(uri)
+    # new1
+    l_uri = [(uri,) for uri in client.open_files]
+    # result = await client.batch_requests(client.send_document_symbol, l_uri)
+
+    result = await client.stream_requests(client.send_document_symbol, l_uri)
+    if len(result) != len(l_uri):
+        raise ValueError(f"Unexpected number of results: {len(result)}")
+    d_symbols = {uri[0]: symbols for uri, symbols in zip(l_uri, result)}
+    logger.info(f"Processed {len(d_symbols)} files")
+
+    l_params = []
+    l_meta = []
+    for uri in client.open_files:
+        uri_short = uri[len_root_uri + 1 :]
+        # raw
+        # symbols = await client.send_document_symbol(uri)
+        # new
+        symbols = d_symbols[uri]
+        if not symbols:
+            continue
+
+        for sym in symbols:
+            name = sym["name"]
+            if entity_name and name != entity_name:
+                continue
+            kind = sym["kind"]
+            if kind in [13, 14, 8, 10, 15]:  # Variable Constant Field Enum
+                continue
+            if kind not in [12, 6, 5]:  # func method class
+                raise ValueError(
+                    f"Unexpected kind value: {kind}, expected one of [12, 6, 5]"
+                )
+            if name == "__init__" and "containerName" in sym:
+                continue
+            loc = sym["location"]["range"]["start"]
+            func_line = loc["line"]
+            func_char = loc["character"]
+            full_name = name
+            if "containerName" in sym:
+                container_name = sym["containerName"]
+                full_name = f"{container_name}.{name}"
+            if name == "main":
+                continue
+            logger.trace(f"{kind} - {full_name}")
+
+            # optional: just check find_enclosing_function
+            # func_name = find_enclosing_function(symbols, func_line)
+            # if func_name != name:
+            #     raise ValueError(f"Expected {name}, got {func_name}")
+
+            if not uri.startswith(root_uri):
+                continue
+
+            # func_char wrong
+            # if func_char not in [0, 4, 8, 12, 16, 20, 24]:
+            # if func_char not in [0,1,2, 4, 8, 12, 16, 20, 24]:
+            if func_char not in [0, 1, 2, 4, 8, 9, 12, 16, 20, 24]:
+                if func_char > 16:
+                    logger.info(f"func_char {func_char}")
+                raise ValueError(
+                    f"func: {name} in {uri_short}:{func_line + 1} func_char is {func_char}"
+                )
+
+            content = await client.read_file(uri)
+            line = "\n".join(content.split("\n")[func_line : func_line + 10])
+            _line = line
+            while _line.strip().startswith("#") or _line.strip().startswith("@"):
+                _line = "\n".join(_line.split("\n")[1:])
+            real_func_char = func_char
+            if kind in [12, 6]:
+                final_prefix = 0
+                if _line.strip().startswith("void"):
+                    base_prefix = line.index("void")
+                    line = line[:base_prefix] + line[base_prefix + 5 :]
+                    final_prefix += base_prefix + 5
+                    _line = line
+                if _line.strip().startswith("int"):
+                    base_prefix = line.index("int")
+                    line = line[:base_prefix] + line[base_prefix + 4 :]
+                    final_prefix += base_prefix + 4
+                    _line = line
+                # if _line.strip().startswith("uint8"):
+                #     base_prefix = line.index("uint8")
+                #     line = line[:base_prefix] + line[base_prefix+6:]
+                #     final_prefix +=base_prefix+6
+                #     _line = line
+
+                # if _line.strip().startswith("static"):
+                #     base_prefix = line.index("static")
+                #     line = line[:base_prefix] + line[base_prefix+7:]
+                #     final_prefix +=base_prefix+7
+
+                if final_prefix:
+                    pass
+
+                elif _line.strip().startswith("def"):
+                    real_func_char = line.index("def") + 4
+                elif _line.strip().startswith("async def"):
+                    real_func_char = line.index("async def") + 10
+                # elif _line.strip().startswith("void"):
+                #     real_func_char = line.index("void") + 5
+
+                # elif _line.strip().startswith("uint8"):
+                #     real_func_char = line.index("uint8") + 6
+                # elif _line.strip().startswith("uint16"):
+                #     real_func_char = line.index("uint16") + 7
+                # elif _line.strip().startswith("uint32"):
+                #     real_func_char = line.index("uint32") + 7
+                # elif _line.strip().startswith("uint64"):
+                #     real_func_char = line.index("uint64") + 7
+                else:
+                    first_line = repr(_line.split("\n")[0])
+                    print(f"Unexpected def line: {first_line}")
+                real_func_char += final_prefix
+            elif kind in [5]:
+                final_prefix = 0
+                # if _line.strip().startswith("typedef"):
+                #     base_prefix = line.index("typedef")
+                #     line = line[:base_prefix] + line[base_prefix+8:]
+                #     final_prefix +=base_prefix+8
+                #     _line = line
+                # if _line.strip().startswith("struct"):
+                #     base_prefix = line.index("struct")
+                #     line = line[:base_prefix] + line[base_prefix+7:]
+                #     final_prefix +=base_prefix+7
+                #     _line = line
+
+                if final_prefix:
+                    pass
+                elif _line.strip().startswith("class"):
+                    real_func_char = line.index("class") + 6
+                # elif _line.strip().startswith("typedef"):
+                #     real_func_char = line.index("typedef") + 8
+                else:
+                    first_line = repr(_line.split("\n")[0])
+                    print(f"Unexpected class line: {first_line}")
+                real_func_char += final_prefix
+            l_params.append((uri, func_line, real_func_char))
+            l_meta.append((name,))
+
+    results = await client.stream_requests(client.send_references, l_params)
+    n_symbols = 0
+    for ref_result, params, meta in zip(results, l_params, l_meta):
+        if not ref_result:
+            continue
+        n_symbols += 1
+        uri, func_line, real_func_char = params
+        uri_short = uri[len_root_uri + 1 :]
+        name = meta[0]
+        for i, ref in enumerate(ref_result, 1):
+            ref_uri = ref.get("uri", "<no-uri>")
+            logger.trace(f"ref_uri {ref_uri}")
+            if "tests" in ref_uri:
+                continue
+            if "test_" in ref_uri:
+                continue
+            range_ = ref.get("range", {})
+            start = range_.get("start", {})
+            line = start.get("line", "?")
+            # character = start.get("character", "?")
+
+            _symbols = await client.send_document_symbol(ref_uri)
+            _func_name = find_enclosing_function(_symbols, line)
+            # if not _func_name:  # import? or direct use
+            #     logger.error(f"no _func_name  {i:02d}. {uri} @ Line {line}, Char {character}")
+            #     continue
+
+            ref_uri_short = ref_uri[len_root_uri + 1 :]
+            if "test" in ref_uri_short:
+                continue
+            if "docs" in ref_uri_short:
+                continue
+            if "__init__.py" in ref_uri_short:
+                continue
+            if "cli.py" in ref_uri_short:
+                continue
+            # if ref_uri_short == uri_short: # 是否分析文件内部的调用
+            #     continue
+            invoke_info = f"{ref_uri_short}:{line + 1}:{_func_name}\tinvoke\t{uri_short}:{func_line}:{name}"
+            if invoke_info not in l_refs:
+                l_refs.add(invoke_info)
+                if len(l_refs) % 1000 == 0:
+                    logger.info(f"Processed {len(l_refs)} references")
+
+    await client.shutdown()
+    logger.info(f"Processed {len(l_refs)} references. n_symbols: {n_symbols}")
     return l_refs
 
 
@@ -1030,7 +1357,7 @@ async def _traverse(client, len_root_uri, start_entities, root_uri):
                 continue
 
             # func_char wrong
-            if func_char not in [0, 4, 8, 12]:
+            if func_char not in [0, 4, 8, 12, 16, 20, 24, 28]:
                 raise ValueError(
                     f"func: {func_name} in {uri_short}:{func_line + 1} func_char is {func_char}"
                 )
@@ -1152,3 +1479,106 @@ async def traverse(
 
     await client.shutdown()
     return list(l_refs)
+
+
+async def get_called(path_str):
+    l_refs = set()
+    client = await get_client(path_str)
+    file_uris = [uri for uri in client.open_files]
+    analyzer = CallGraphAnalyzer(client)
+    call_graph = await analyzer.analyze_project(file_uris)
+
+    for caller, callees in call_graph.items():
+        # print(f"{caller} 调用了: {', '.join(callees)}")
+        for callee in callees:
+            r = "\t".join([caller, "called", callee])
+            l_refs.add(r)
+    return l_refs
+
+
+class CallGraphAnalyzer:
+    def __init__(self, client: BaseLSPClient):
+        self.client = client  # 你的LSP客户端实例
+
+    async def analyze_project(self, file_uris: List[str]) -> Dict[str, List[str]]:
+        call_graph: Dict[str, List[str]] = {}
+
+        l_uri = [(uri,) for uri in file_uris]
+        results = await self.client.stream_requests(
+            self.client.send_document_symbol, l_uri
+        )
+        if len(results) != len(l_uri):
+            raise ValueError(f"Unexpected number of results: {len(results)}")
+        d_symbols = {uri[0]: symbols for uri, symbols in zip(l_uri, results)}
+
+        set_params = set()
+        l_params = []
+        l_meta = []
+        for uri in file_uris:
+            # 1. 获取文件符号（函数、类、方法）
+            # symbols = await self.client.send_document_symbol(uri)
+            symbols = d_symbols[uri]
+            # 2. 读取文件内容
+            text = await self.client.read_file(uri)
+            # 3. 遍历函数符号，提取调用关系
+            for sym in symbols:
+                if sym["kind"] in [12, 6]:
+                    caller_name = sym["name"]
+                    caller_range = sym["location"]["range"]
+                    start_line = caller_range["start"]["line"]
+                    func_body = self._extract_code(text, caller_range)
+                    # 4. 找调用的函数名（简单用正则，示例为 Python 调用）
+                    called_names = self._find_called_functions(func_body)
+
+                    for name in called_names:  # 5. 查询调用定义
+                        d_params = position_for_name(func_body, name, start_line)
+                        line = d_params["line"]
+                        character = d_params["character"]
+                        # r = '\t'.join([uri, str(line), str(character)])
+                        r = tuple([uri, line, character])
+                        if r not in set_params:
+                            set_params.add(r)
+                        l_params.append((uri, line, character))
+                        l_meta.append([name, caller_name, caller_range])
+
+        logger.debug(f"before {len(l_params)}; after {len(set_params)}")
+        l_set_params = list(set_params)
+        locations = await self.client.stream_requests(
+            self.client.send_definition, l_set_params, max_concurrency=1
+        )
+        d_cached_loc = {}
+        for params, location in zip(l_set_params, locations):
+            d_cached_loc[params] = location
+
+        for meta, params in zip(l_meta, l_params):
+            location = d_cached_loc[params]
+            if location:
+                name = meta[0]
+                caller_name = meta[1]
+                if caller_name not in call_graph:
+                    call_graph[caller_name] = []
+                call_graph[caller_name].append(name)
+
+        return call_graph
+
+    def _extract_code(self, text: str, rng: dict) -> str:
+        # 根据range（start/end行列）提取源码，示例只用行范围
+        lines = text.splitlines()
+        start_line = rng["start"]["line"]
+        end_line = rng["end"]["line"]
+        return "\n".join(lines[start_line : end_line + 1])
+
+    def _find_called_functions(self, code: str) -> List[str]:
+        # 简单示例用正则匹配函数调用：foo(...)，忽略复杂语法
+        pattern = r"(\w+)\s*\("
+        return re.findall(pattern, code)[1:]
+
+
+def position_for_name(code: str, name: str, start_line: int) -> dict:
+    # TODO 目前只是简单返回第一个找到调用名字的位置
+    lines = code.splitlines()
+    for lineno, line in enumerate(lines):
+        col = line.find(name)
+        if col >= 0:
+            return {"line": lineno + start_line, "character": col}
+    return {"line": -1, "character": -1}
