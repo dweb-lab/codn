@@ -5,22 +5,25 @@ This script helps users install codn using the best available package manager. I
 detects uv, pip, and provides appropriate installation commands.
 """
 
-import subprocess
+import subprocess  # nosec
 import sys
 from pathlib import Path
+import shlex
+
+ALLOWED_COMMANDS = ["uv --version", "pip --version"]
 
 
 def run_command(cmd, capture_output=True, text=True):
     """Run a command and return the result."""
     try:
-        result = subprocess.run(
-            cmd,
-            check=False,
-            shell=True,
-            capture_output=capture_output,
-            text=text,
-        )
-        return result.returncode == 0, result.stdout, result.stderr
+        if cmd in ALLOWED_COMMANDS:
+            result = subprocess.run(
+                shlex.split(cmd),
+                check=False,
+                capture_output=capture_output,
+                text=text,
+            )  # nosec: B603
+            return result.returncode == 0, result.stdout, result.stderr
     except Exception as e:
         return False, "", str(e)
 
