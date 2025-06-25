@@ -3,6 +3,7 @@ from typing import AsyncGenerator, Optional, Set, Union, List, Generator
 import pathspec
 from collections import Counter, OrderedDict
 import asyncio
+from itertools import chain
 
 # Common directories to skip during file traversal
 DEFAULT_SKIP_DIRS = {
@@ -23,7 +24,33 @@ DEFAULT_SKIP_DIRS = {
 
 
 # 映射常见文件扩展名到语言类型
-EXTENSION_TO_LANGUAGE = {
+LANG_TO_LANGUAGE = {
+    "py": "python",
+    "js": "javascript",
+    "ts": "typescript",
+    "java": "java",
+    "cpp": "cpp",
+    "c": "c",
+    "cs": "csharp",
+    "go": "go",
+    "rb": "ruby",
+    "php": "php",
+    "rs": "rust",
+    "swift": "swift",
+    "kt": "kotlin",
+    "m": "objective-c",
+    "sh": "shell",
+    "html": "html",
+    "css": "css",
+    "lua": "lua",
+    "json": "json",
+    "xml": "xml",
+    "yml": "yaml",
+    "yaml": "yaml",
+}
+
+
+EXTENSION_TO_LANGUAGE_FULL = {
     ".py": "Python",
     ".js": "JavaScript",
     ".ts": "TypeScript",
@@ -114,9 +141,16 @@ async def list_all_files(
     root_path = Path(root).resolve()
     gitignore_spec = load_gitignore(root_path)
 
-    for _file in root_path.rglob(pattern):
-        if not should_ignore(_file, root_path, ignored_dirs, gitignore_spec):
-            yield _file
+    if "," not in pattern:
+        for _file in root_path.rglob(pattern):
+            if not should_ignore(_file, root_path, ignored_dirs, gitignore_spec):
+                yield _file
+
+    else:
+        patterns = pattern.split(",")
+        for _file in chain.from_iterable(root_path.rglob(p) for p in patterns):
+            if not should_ignore(_file, root_path, ignored_dirs, gitignore_spec):
+                yield _file
 
 
 def list_all_files_sync(
@@ -173,8 +207,7 @@ def detect_dominant_languages(
     for file_path in gen_all_files_sync(root=root, ignored_dirs=ignored_dirs):
         if file_path.is_file():
             ext = file_path.suffix.lower()
-            # lang = EXTENSION_TO_LANGUAGE.get(ext)
-            if ext in EXTENSION_TO_LANGUAGE:
+            if ext in EXTENSION_TO_LANGUAGE_FULL:
                 lang = ext[1:]
                 counter[lang] += 1
 
@@ -207,7 +240,7 @@ async def group_files_by_dominant_language(
     async for file_path in list_all_files(root=root, ignored_dirs=ignored_dirs):
         if file_path.is_file():
             ext = file_path.suffix.lower()
-            lang = EXTENSION_TO_LANGUAGE.get(ext)
+            lang = EXTENSION_TO_LANGUAGE_FULL.get(ext)
             if lang:
                 lang_counter[lang] += 1
                 file_lang_map.append((file_path, lang))
