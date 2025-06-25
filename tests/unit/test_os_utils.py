@@ -1,7 +1,7 @@
 """Unit tests for codn.utils.os_utils module.
 
-This module contains comprehensive tests for file system operations,
-gitignore handling, and async file discovery functionality.
+This module contains comprehensive tests for file system operations, gitignore handling,
+and async file discovery functionality.
 """
 
 from unittest.mock import patch
@@ -174,8 +174,7 @@ class TestShouldIgnore:
         )
 
     def test_ignore_combination(self, tmp_path):
-        """Test ignoring files by both directory names and gitignore
-        patterns."""
+        """Test ignoring files by both directory names and gitignore patterns."""
         ignored_dirs = {"__pycache__"}
         patterns = ["*.pyc", "temp/"]
         gitignore_spec = pathspec.PathSpec.from_lines("gitwildmatch", patterns)
@@ -520,8 +519,7 @@ class TestDefaultSkipDirs:
         assert expected_dirs == DEFAULT_SKIP_DIRS
 
     def test_default_skip_dirs_immutable(self):
-        """Test that DEFAULT_SKIP_DIRS is a set (immutable for our
-        purposes)."""
+        """Test that DEFAULT_SKIP_DIRS is a set (immutable for our purposes)."""
         assert isinstance(DEFAULT_SKIP_DIRS, set)
 
 

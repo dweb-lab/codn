@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Codn Installation Helper.
 
-This script helps users install codn using the best available package
-manager. It detects uv, pip, and provides appropriate installation
-commands.
+This script helps users install codn using the best available package manager. It
+detects uv, pip, and provides appropriate installation commands.
 """
 
 import subprocess

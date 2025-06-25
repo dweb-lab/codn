@@ -1,8 +1,7 @@
 """Unit tests for codn.utils.simple_ast module.
 
-This module contains comprehensive tests for Python AST analysis
-functionality, including function detection, inheritance analysis, and
-edge cases.
+This module contains comprehensive tests for Python AST analysis functionality,
+including function detection, inheritance analysis, and edge cases.
 """
 
 import ast
@@ -190,8 +189,7 @@ def simple_function():
         assert result is None
 
     def test_lambda_function(self):
-        """Test with lambda functions (should not be detected as regular
-        functions)."""
+        """Test with lambda functions (should not be detected as regular functions)."""
         content = """
 lambda_func = lambda x: x * 2  # Line 1 (0-based: line 0)
 

@@ -1,8 +1,7 @@
 """Unit tests for codn.utils.git_utils module.
 
-This module contains comprehensive tests for Git repository validation
-functionality, including various repository states, error conditions,
-and edge cases.
+This module contains comprehensive tests for Git repository validation functionality,
+including various repository states, error conditions, and edge cases.
 """
 
 import subprocess
@@ -416,8 +415,7 @@ class TestIsValidGitRepo:
         assert all(results)
 
     def test_large_repository_simulation(self, tmp_path):
-        """Test with a repository that has multiple commits (simulating larger
-        repo)."""
+        """Test with a repository that has multiple commits (simulating larger repo)."""
         repo_dir = tmp_path / "large_repo"
         repo_dir.mkdir()
 

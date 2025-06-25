@@ -1,7 +1,7 @@
 """Tests for BaseLSPClient module.
 
-This module contains comprehensive tests for the Pyright LSP client,
-including unit tests, integration tests, and mocking scenarios.
+This module contains comprehensive tests for the Pyright LSP client, including unit
+tests, integration tests, and mocking scenarios.
 """
 
 import asyncio
