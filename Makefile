@@ -155,7 +155,7 @@ mypy-check:
 
 bandit:
 	@echo "🛡️ Running Bandit security checks..."
-	@bandit -r codn -q
+	@bandit -r . -x ./tests,__pycache__,venv
 	@echo "✅ Bandit check complete!"
 
 # Composite linting targets
