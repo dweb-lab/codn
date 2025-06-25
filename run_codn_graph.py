@@ -1,23 +1,23 @@
 import asyncio
+import sys
+import os
+from loguru import logger
+import time
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 from watchfiles import awatch
-
 from codn.utils.os_utils import list_all_files
 
-# from codn.utils.pyright_lsp_client import (
 from codn.utils.base_lsp_client import (
     BaseLSPClient,
     extract_inheritance_relations,
     extract_symbol_code,
     find_enclosing_function,
     path_to_file_uri,
+    get_refs,
+    get_refs_clean,
+    get_called,
 )
-
-
-import sys
-import os
-from loguru import logger
 
 
 def formatter(record):
@@ -36,12 +36,11 @@ def formatter(record):
 
 
 logger.remove()
-logger.add(sys.stderr, format=formatter, level="DEBUG", colorize=True)
+logger.add(sys.stderr, format=formatter, level="INFO", colorize=True)
 logx = logger
 
 
-# 特殊情况，pyright无法分析出来
-# async def watch_and_sync2(client: BaseLSPClient, project_path):
+# 特殊情况: 不进行类型注解 client: BaseLSPClient ，pyright无法分析出来
 async def watch_and_sync2(client, project_path):
     async for changes in awatch(project_path):
         for change_type, changed_path in changes:
@@ -54,18 +53,12 @@ async def watch_and_sync2(client, project_path):
                 await client.send_did_close(uri)
 
 
-# def get_path(uri, len_root_uri):
-#     return uri[len_root_uri+1:]
-
-
 async def test_get_refs(entity_name=None):
     l_refs = set()
-
     path_str = "."
     root_path = Path(path_str).resolve()
     root_uri = path_to_file_uri(str(root_path))
     client = await get_client(root_uri)
-
     len_root_uri = len(str(root_uri))
 
     for uri in client.open_files:
@@ -224,7 +217,6 @@ async def test_get_snippet(entity_name=None):
     client = await get_client(root_uri)
 
     for uri in client.open_files:
-        # uri_short = uri[len_root_uri+1:]
         symbols = await client.send_document_symbol(uri)
         parsed = urlparse(uri)
         local_path = unquote(parsed.path)
@@ -279,12 +271,41 @@ async def test_get_superclass(class_name):
     return r
 
 
+async def test_get_refs_bench(path_str="."):
+    logger.info("use get_called")
+    t_start = time.time()
+    l_refs = await get_called(path_str)
+    t_end = time.time()
+    logger.info(f"Time taken: {t_end - t_start} seconds")
+    logger.info(f"final rels: {len(l_refs)}\n")
+
+    logger.info("use get_refs_clean")
+    t_start = time.time()
+    l_refs = await get_refs_clean(path_str=path_str)
+    t_end = time.time()
+    logger.info(f"Time taken: {t_end - t_start} seconds")
+    logger.info(f"final rels: {len(l_refs)}\n")
+
+    logger.info("use get_refs")
+    t_start = time.time()
+    l_refs = await get_refs(path_str=path_str)
+    t_end = time.time()
+    logger.info(f"Time taken: {t_end - t_start} seconds")
+    logger.info(f"final rels: {len(l_refs)}\n")
+
+
 if __name__ == "__main__":
     # asyncio.run(test_get_refs())
     # asyncio.run(test_get_refs('find_enclosing_function'))
     # asyncio.run(test_get_refs('list_all_files'))
     # asyncio.run(test_get_refs("extract_inheritance_relations"))
-    asyncio.run(test_get_refs("send_did_open"))
+    # asyncio.run(test_get_refs("send_did_open"))
     # asyncio.run(test_get_snippet("send_did_open"))
     # asyncio.run(test_get_superclasses())
     # asyncio.run(test_get_superclass("LSPClientState"))
+    # asyncio.run(test_get_snippet("parse_ecu_definition"))
+    # asyncio.run(test_get_refs_clean())
+    path_str = "."
+    if len(sys.argv) > 1:
+        path_str = sys.argv[1]
+    asyncio.run(test_get_refs_bench(path_str=path_str))
