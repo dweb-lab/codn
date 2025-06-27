@@ -16,14 +16,17 @@ import time
 from codn.utils.os_utils import LANG_TO_LANGUAGE
 
 LSP_COMMANDS = {
-    "cpp": ["clangd"],  # "--log=verbose" "--background-index", "--pch-storage=memory"
-    "c": ["clangd"],
-    "py": ["pyright-langserver", "--stdio"],  # ["pylsp"], # slow
+    "cpp": ["clangd"],
+    "c": ["clangd", "--pch-storage=memory"],
+    "py": ["pyright-langserver", "--stdio"],
     "ts": ["typescript-language-server", "--stdio"],
     "tsx": ["typescript-language-server", "--stdio"],
 }
 DEFAULT_TIMEOUT = 30
 BUFFER_SIZE = 8192
+
+# Variable Constant Field Enum Constructor Namespace Property
+l_sym_ignore = [int(j) for j in "13 14 8 10 15 9 3 7".split()]
 
 
 def path_to_file_uri(path_str: str) -> str:
@@ -160,8 +163,10 @@ class BaseLSPClient:
 
             return result.get("result") if isinstance(result, dict) else result
         except asyncio.TimeoutError:
-            logger.error(f"Request {method} (id: {msg_id}) timed out")
-            raise LSPError(f"Request {method} (id: {msg_id}) timed out")
+            self._pending.pop(msg_id, None)
+            return {"err": "timed out"}
+            # logger.error(f"Request {method} (id: {msg_id}) timed out. params {params}")
+            # raise LSPError(f"Request {method} (id: {msg_id}) timed out")
         except Exception as e:
             if isinstance(e, LSPError):
                 raise
@@ -447,12 +452,12 @@ class BaseLSPClient:
                     speed = completed / elapsed if elapsed > 0 else 0
                     percent = (completed / total) * 100
                     eta = (total - completed) / speed if speed > 0 else float("inf")
-                    print(
-                        f"\rProgress: {completed}/{total} ({percent:.1f}%) "
+                    logger.info(
+                        f"Progress: {completed}/{total} ({percent:.1f}%) "
                         f"| Elapsed: {elapsed:.1f}s "
                         f"| Speed: {speed:.2f}/s "
                         f"| ETA: {eta:.1f}s",
-                        end="",
+                        end="\n",
                         flush=True,
                     )
                     printed = True
@@ -502,7 +507,8 @@ class BaseLSPClient:
     async def send_references(self, uri: str, line: int, character: int) -> Any:
         if line < 0 or character < 0:
             raise ValueError("Line and character must be non-negative")
-        return await self._request(
+        start_time = time.perf_counter()
+        ret = await self._request(
             "textDocument/references",
             {
                 "textDocument": {"uri": uri},
@@ -510,6 +516,12 @@ class BaseLSPClient:
                 "context": {"includeDeclaration": False},
             },
         )
+        duration = time.perf_counter() - start_time
+        r = "\t".join(
+            [uri, str(line), str(character), json.dumps(ret), str(round(duration, 4))]
+        )
+        print(r)
+        return ret
 
     async def send_definition(self, uri: str, line: int, character: int) -> Any:
         if line < 0 or character < 0:
@@ -591,9 +603,22 @@ class BaseLSPClient:
     async def _cleanup(self) -> None:
         if self.proc:
             try:
+                # 优先关闭 stdin
                 if self.proc.stdin and not self.proc.stdin.is_closing():
                     self.proc.stdin.close()
                     await self.proc.stdin.wait_closed()
+
+                for pipe in (self.proc.stdout, self.proc.stderr):
+                    if pipe:
+                        # 读取直到 EOF，或忽略（让子进程回收时自动关闭）
+                        try:
+                            await pipe.read()  # 或者 readuntil() 或 readline()
+                        except Exception as e:
+                            logger.debug(
+                                f"Error while reading from pipe during cleanup: {e}"
+                            )
+
+                # 等待子进程退出
                 if self.proc.returncode is None:
                     self.proc.terminate()
                     try:
@@ -603,7 +628,10 @@ class BaseLSPClient:
                         await self.proc.wait()
             except Exception as e:
                 logger.trace(f"Error during cleanup: {e}")
+            finally:
+                self.proc = None  # ✅ 断开引用，避免误用
 
+        # 清理状态
         self.open_files.clear()
         self.file_versions.clear()
         async with self._lock:
@@ -780,10 +808,9 @@ async def get_client(path_str: str):
     client = BaseLSPClient(root_uri)
     await client.start(lang)
     logger.debug(f"Started LSP client for {lang} at {root_path}")
-    # if lang=='c':
-    #     lang = 'c,*.h'
     language_id = LANG_TO_LANGUAGE.get(lang, lang)
-    # print(lang, language_id)
+    if lang == "c":
+        lang = "c,*.h"
     if lang == "cpp":
         lang = "cpp,*.hpp"
 
@@ -791,6 +818,8 @@ async def get_client(path_str: str):
         str_py_file = str(py_file)
         if "tests/" in str_py_file or "test_" in str_py_file:
             continue
+        # if "deprecated/" in str_py_file:
+        #     continue
         content = py_file.read_text(encoding="utf-8")
         if not content:
             # if not str_py_file.endswith("__init__.py"):
@@ -824,8 +853,44 @@ async def get_snippet(entity_name=None, path_str="."):
     return l_code_snippets
 
 
-def is_needed_name(name, _search_terms):
-    pass
+async def get_funcs_for_lines(line_nums, file_name, path_str="."):
+    d_func_name = {}
+    lang: str = file_name.split(".")[-1]
+    root_path = Path(path_str).resolve()
+    root_uri = path_to_file_uri(str(root_path))
+    client = BaseLSPClient(root_uri)
+    await client.start(lang)
+    language_id: str = LANG_TO_LANGUAGE.get(lang, lang)
+
+    async for py_file in list_all_files(path_str, f"{file_name}"):
+        content = py_file.read_text(encoding="utf-8")
+        if not content:
+            continue
+        uri = path_to_file_uri(str(py_file))
+        if not content:
+            logger.error(f"Empty file: {uri}")
+        await client.send_did_open(uri, content, language_id)
+
+    uri = list(client.open_files)[0]
+    symbols = await client.send_document_symbol(uri)
+    for sym in symbols:
+        name = sym["name"]
+        kind = sym["kind"]
+        if kind not in [12, 6, 5]:
+            continue
+        loc = sym["location"]
+        start = loc["range"]["start"]["line"]
+        end = loc["range"]["end"]["line"]
+        for line_num in line_nums:
+            if start <= line_num - 1 <= end:
+                full_name = name
+                if sym.get("containerName"):
+                    container_name = sym["containerName"]
+                    full_name = f"{container_name}.{name}"
+                d_func_name[line_num] = (full_name, start + 1, end + 1)
+
+    await client.shutdown()
+    return d_func_name
 
 
 def get_search_type(search_terms):
@@ -947,10 +1012,9 @@ async def get_snippets(search_terms: List[str], path_str=".", file_path_or_patte
             for sym in symbols:
                 name = sym["name"]
                 full_name = name
-                if "containerName" in sym:
+                if sym.get("containerName"):
                     container_name = sym["containerName"]
                     full_name = f"{container_name}.{name}"
-
                 full_name_with_file = f"{_local_path}:{full_name}"
                 if full_name_with_file not in _search_terms:
                     continue
@@ -992,7 +1056,7 @@ async def get_refs(entity_name=None, path_str="."):
             func_line = loc["line"]
             func_char = loc["character"]
             full_name = name
-            if "containerName" in sym:
+            if sym.get("containerName"):
                 container_name = sym["containerName"]
                 full_name = f"{container_name}.{name}"
             if name == "main":
@@ -1016,7 +1080,6 @@ async def get_refs(entity_name=None, path_str="."):
                 )
 
             ref_result = None
-            # logx.info(f" func: {uri}:{func_line}:{func_char}")
             if kind in [12, 6]:
                 func_char += 4  # def
                 ref_result = await client.send_references(
@@ -1094,32 +1157,27 @@ async def get_refs(entity_name=None, path_str="."):
                     continue
                 invoke_info = f"{ref_uri_short}:{line + 1}:{_func_name}\tinvoke\t{uri_short}:{func_line}:{func_name}"
                 if invoke_info not in l_refs:
-                    # logger.trace(invoke_info)
                     l_refs.add(invoke_info)
-
                     if len(l_refs) % 1000 == 0:
                         logger.info(f"Processed {len(l_refs)} references")
 
     await client.shutdown()
-    print(n_symbols)
+    logger.trace(f"n_symbols={n_symbols} l_refs={len(l_refs)}")
     return l_refs
 
 
-async def get_refs_clean(entity_name=None, path_str="."):
+async def get_refs_clean(entity_name=None, path_str=".", l_done=None):
     l_refs = set()
     client = await get_client(path_str)
 
     root_path = Path(path_str).resolve()
     root_uri = path_to_file_uri(str(root_path))
     len_root_uri = len(str(root_uri))
-    # raw
-    # for uri in client.open_files:
-    #     await client.send_document_symbol(uri)
-    # new1
     l_uri = [(uri,) for uri in client.open_files]
     # result = await client.batch_requests(client.send_document_symbol, l_uri)
-
-    result = await client.stream_requests(client.send_document_symbol, l_uri)
+    result = await client.stream_requests(
+        client.send_document_symbol, l_uri, max_concurrency=10
+    )
     if len(result) != len(l_uri):
         raise ValueError(f"Unexpected number of results: {len(result)}")
     d_symbols = {uri[0]: symbols for uri, symbols in zip(l_uri, result)}
@@ -1129,9 +1187,6 @@ async def get_refs_clean(entity_name=None, path_str="."):
     l_meta = []
     for uri in client.open_files:
         uri_short = uri[len_root_uri + 1 :]
-        # raw
-        # symbols = await client.send_document_symbol(uri)
-        # new
         symbols = d_symbols[uri]
         if not symbols:
             continue
@@ -1141,19 +1196,17 @@ async def get_refs_clean(entity_name=None, path_str="."):
             if entity_name and name != entity_name:
                 continue
             kind = sym["kind"]
-            if kind in [13, 14, 8, 10, 15]:  # Variable Constant Field Enum
+            if kind in l_sym_ignore:
                 continue
             if kind not in [12, 6, 5]:  # func method class
-                raise ValueError(
-                    f"Unexpected kind value: {kind}, expected one of [12, 6, 5]"
-                )
+                raise ValueError(f"Unexpected kind: {kind}, expected one of [12, 6, 5]")
             if name == "__init__" and "containerName" in sym:
                 continue
             loc = sym["location"]["range"]["start"]
             func_line = loc["line"]
             func_char = loc["character"]
             full_name = name
-            if "containerName" in sym:
+            if sym.get("containerName"):
                 container_name = sym["containerName"]
                 full_name = f"{container_name}.{name}"
             if name == "main":
@@ -1168,15 +1221,7 @@ async def get_refs_clean(entity_name=None, path_str="."):
             if not uri.startswith(root_uri):
                 continue
 
-            # func_char wrong
-            # if func_char not in [0, 4, 8, 12, 16, 20, 24]:
-            # if func_char not in [0,1,2, 4, 8, 12, 16, 20, 24]:
-            if func_char not in [0, 1, 2, 4, 8, 9, 12, 16, 20, 24]:
-                if func_char > 16:
-                    logger.info(f"func_char {func_char}")
-                raise ValueError(
-                    f"func: {name} in {uri_short}:{func_line + 1} func_char is {func_char}"
-                )
+            # optional: check func_char for format checking
 
             content = await client.read_file(uri)
             line = "\n".join(content.split("\n")[func_line : func_line + 10])
@@ -1186,76 +1231,76 @@ async def get_refs_clean(entity_name=None, path_str="."):
             real_func_char = func_char
             if kind in [12, 6]:
                 final_prefix = 0
+                if _line.strip().startswith("static"):
+                    base_prefix = line.index("static")
+                    line = line[:base_prefix] + line[base_prefix + 7 :]
+                    final_prefix += base_prefix + 7
                 if _line.strip().startswith("void"):
                     base_prefix = line.index("void")
                     line = line[:base_prefix] + line[base_prefix + 5 :]
                     final_prefix += base_prefix + 5
                     _line = line
+
                 if _line.strip().startswith("int"):
                     base_prefix = line.index("int")
                     line = line[:base_prefix] + line[base_prefix + 4 :]
                     final_prefix += base_prefix + 4
                     _line = line
-                # if _line.strip().startswith("uint8"):
-                #     base_prefix = line.index("uint8")
-                #     line = line[:base_prefix] + line[base_prefix+6:]
-                #     final_prefix +=base_prefix+6
-                #     _line = line
-
-                # if _line.strip().startswith("static"):
-                #     base_prefix = line.index("static")
-                #     line = line[:base_prefix] + line[base_prefix+7:]
-                #     final_prefix +=base_prefix+7
+                if _line.strip().startswith("char *"):
+                    base_prefix = line.index("char *")
+                    line = line[:base_prefix] + line[base_prefix + 6 :]
+                    final_prefix += base_prefix + 6
+                    _line = line
 
                 if final_prefix:
                     pass
-
                 elif _line.strip().startswith("def"):
                     real_func_char = line.index("def") + 4
-                elif _line.strip().startswith("async def"):
-                    real_func_char = line.index("async def") + 10
-                # elif _line.strip().startswith("void"):
-                #     real_func_char = line.index("void") + 5
+                elif full_name in _line:
+                    base_prefix = line.index(full_name)
+                    line = line[:base_prefix] + line[base_prefix + len(full_name) :]
+                    final_prefix += base_prefix + len(full_name)
+                    _line = line
 
-                # elif _line.strip().startswith("uint8"):
-                #     real_func_char = line.index("uint8") + 6
-                # elif _line.strip().startswith("uint16"):
-                #     real_func_char = line.index("uint16") + 7
-                # elif _line.strip().startswith("uint32"):
-                #     real_func_char = line.index("uint32") + 7
-                # elif _line.strip().startswith("uint64"):
-                #     real_func_char = line.index("uint64") + 7
                 else:
                     first_line = repr(_line.split("\n")[0])
-                    print(f"Unexpected def line: {first_line}")
+                    logger.error(
+                        f"Unexpected def line={first_line} full_name={full_name}"
+                    )
                 real_func_char += final_prefix
             elif kind in [5]:
                 final_prefix = 0
-                # if _line.strip().startswith("typedef"):
-                #     base_prefix = line.index("typedef")
-                #     line = line[:base_prefix] + line[base_prefix+8:]
-                #     final_prefix +=base_prefix+8
-                #     _line = line
-                # if _line.strip().startswith("struct"):
-                #     base_prefix = line.index("struct")
-                #     line = line[:base_prefix] + line[base_prefix+7:]
-                #     final_prefix +=base_prefix+7
-                #     _line = line
-
                 if final_prefix:
                     pass
                 elif _line.strip().startswith("class"):
                     real_func_char = line.index("class") + 6
-                # elif _line.strip().startswith("typedef"):
-                #     real_func_char = line.index("typedef") + 8
+                elif _line.strip().startswith("typedef"):
+                    pass
+                elif _line.strip().startswith("struct"):
+                    pass
+                elif "struct " in _line.strip():
+                    pass
                 else:
                     first_line = repr(_line.split("\n")[0])
-                    print(f"Unexpected class line: {first_line}")
+                    logger.error(f"Unexpected class line: {first_line}")
                 real_func_char += final_prefix
             l_params.append((uri, func_line, real_func_char))
             l_meta.append((name,))
 
-    results = await client.stream_requests(client.send_references, l_params)
+    logger.info(f"==l_params== {len(l_params)}")
+    if l_done:
+        l_params_new = []
+        for param in l_params:
+            r = "\t".join([str(j) for j in param[:2]])
+            if r not in l_done:
+                l_params_new.append(param)
+        logger.info(f"==l_params_new== {len(l_params_new)}")
+    else:
+        l_params_new = l_params
+
+    results = await client.stream_requests(
+        client.send_references, l_params_new, max_concurrency=1
+    )
     n_symbols = 0
     for ref_result, params, meta in zip(results, l_params, l_meta):
         if not ref_result:
@@ -1275,7 +1320,6 @@ async def get_refs_clean(entity_name=None, path_str="."):
             start = range_.get("start", {})
             line = start.get("line", "?")
             # character = start.get("character", "?")
-
             _symbols = await client.send_document_symbol(ref_uri)
             _func_name = find_enclosing_function(_symbols, line)
             # if not _func_name:  # import? or direct use
@@ -1342,7 +1386,7 @@ async def _traverse(client, len_root_uri, start_entities, root_uri):
             func_line = loc["line"]
             func_char = loc["character"]
             full_name = name
-            if "containerName" in sym:
+            if sym.get("containerName"):
                 container_name = sym["containerName"]
                 full_name = f"{container_name}.{name}"
             if name == "main":
@@ -1400,7 +1444,6 @@ async def _traverse(client, len_root_uri, start_entities, root_uri):
                 raise ValueError(
                     f"No references found for func: {uri}:{func_line}:{func_char} kind: {kind}"
                 )
-                continue
             for i, ref in enumerate(ref_result, 1):
                 ref_uri = ref.get("uri", "<no-uri>")
                 logger.trace(f"ref_uri {ref_uri}")
@@ -1420,9 +1463,7 @@ async def _traverse(client, len_root_uri, start_entities, root_uri):
 
                 _symbols = await client.send_document_symbol(ref_uri)
                 _func_name = find_enclosing_function(_symbols, line)
-
                 ref_uri_short = ref_uri[len_root_uri + 1 :]
-
                 if "test" in ref_uri_short:
                     continue
                 if "docs" in ref_uri_short:
@@ -1431,7 +1472,6 @@ async def _traverse(client, len_root_uri, start_entities, root_uri):
                     continue
                 if "cli.py" in ref_uri_short:
                     continue
-
                 invoke_info = f"{ref_uri_short}:{line + 1}:{_func_name}\tinvoke\t{uri_short}:{func_line}:{func_name}"
                 if invoke_info not in l_refs:
                     l_refs.add(invoke_info)
@@ -1440,13 +1480,12 @@ async def _traverse(client, len_root_uri, start_entities, root_uri):
 
 async def traverse(
     start_entities,
-    entity_type_filter,
-    dependency_type_filter,
+    # entity_type_filter,
+    # dependency_type_filter,
     direction,
     traversal_depth,
     path_str=".",
 ):
-    # Perform the traversal
     # 暂时无视 entity_type_filter dependency_type_filter
     l_refs = set()
     client = await get_client(path_str)
@@ -1456,7 +1495,6 @@ async def traverse(
 
     if direction == "downstream":
         current_depth = 1
-        # 先解决1层的
         todo = []
         if traversal_depth >= current_depth:
             _l_refs = await _traverse(client, len_root_uri, start_entities, root_uri)
@@ -1489,7 +1527,7 @@ async def get_called(path_str):
     call_graph = await analyzer.analyze_project(file_uris)
 
     for caller, callees in call_graph.items():
-        # print(f"{caller} 调用了: {', '.join(callees)}")
+        # print(f"{caller} called: {', '.join(callees)}")
         for callee in callees:
             r = "\t".join([caller, "called", callee])
             l_refs.add(r)
@@ -1544,7 +1582,7 @@ class CallGraphAnalyzer:
         logger.debug(f"before {len(l_params)}; after {len(set_params)}")
         l_set_params = list(set_params)
         locations = await self.client.stream_requests(
-            self.client.send_definition, l_set_params, max_concurrency=1
+            self.client.send_definition, l_set_params, max_concurrency=10
         )
         d_cached_loc = {}
         for params, location in zip(l_set_params, locations):
