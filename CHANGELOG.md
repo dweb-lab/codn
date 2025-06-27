@@ -9,7 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.5] - 2025-06-27
 
-## [0.1.5] - 2025-06-27
+### Added
+- **LSP Enhancements**:
+  - Added `get_funcs_for_lines` for improved function extraction by line ranges
+  - Introduced stream and batch request helpers to improve LSP file state tracking
+- **Multi-language Parsing**:
+  - Enhanced multi-language parser runner with improved logging, testing, and call graph generation
+- **Benchmarking**:
+  - Added benchmarking tests for key functions: `get_called`, `get_refs_clean`, and `get_refs`
+
+### Changed
+- Refactored LSP client code with better cleanup, logging, and timeout handling
+- Improved language detection and multi-pattern file matching in `os_utils`
+
+### Fixed
+- Hardened subprocess usage in installation scripts to comply with Bandit security checks
+- Removed unused imports and commented out flaky timeout test to stabilize test suite
+
+### Chore
+- Refined Bandit configuration in Makefile to exclude test and cache directories
+- Reflowed and reformatted documentation docstrings for better readability
+- Prepared release for version 0.1.5
 
 ## [0.1.4] - 2025-06-24
 
@@ -163,7 +183,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - LSP client for static analysis integration
 - Cross-platform compatibility
 
-[Unreleased]: https://github.com/dweb-lab/codn/compare/v0.1.5...HEAD[0.1.3]: https://github.com/dweb-lab/codn/compare/v0.1.2...v0.1.3
+[Unreleased]: https://github.com/dweb-lab/codn/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/dweb-lab/codn/compare/v0.1.4...v0.1.5
+[0.1.4]: https://github.com/dweb-lab/codn/compare/v0.1.3...v0.1.4
+[0.1.3]: https://github.com/dweb-lab/codn/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/dweb-lab/codn/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/dweb-lab/codn/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/dweb-lab/codn/releases/tag/v0.1.0
