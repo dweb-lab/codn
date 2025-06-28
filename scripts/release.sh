@@ -43,7 +43,6 @@ echo "✏️ Updating version in source and config..."
 
 $SED_INPLACE "s/^__version__ = \".*\"/__version__ = \"$VERSION\"/" codn/__init__.py
 $SED_INPLACE "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
-$SED_INPLACE "0,/\"version\": \".*\"/s//\"version\": \"$VERSION\"/" uv.lock
 
 # Step 2: Generate grouped changelog from git log
 echo "📝 Generating grouped changelog from git log..."
@@ -164,6 +163,9 @@ echo "----"
 if [ "$DRY_RUN" == "--dry-run" ]; then
   echo "✅ Dry-run mode. No changes committed or pushed."
   exit 0
+else
+  echo "🔄 Syncing dependencies and generating lockfile..."
+  uv sync
 fi
 
 # Step 5: Commit and tag
