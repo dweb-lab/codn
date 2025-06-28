@@ -3,10 +3,11 @@ import os
 import asyncio
 from pathlib import Path
 from codn.utils.lsp_core import BaseLSPClient, LSPError  # noqa
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from loguru import logger
 from codn.utils.os_utils import LANG_TO_LANGUAGE
 from codn.utils.os_utils import list_all_files, detect_dominant_languages
+from codn.utils.lsp_utils import extract_code, find_enclosing_function
 from urllib.parse import unquote, urlparse
 from watchfiles import awatch
 
@@ -50,76 +51,6 @@ def extract_symbol_code(sym: Dict[str, Any], content: str, strip: bool = False) 
     except Exception as e:
         logger.trace(f"Error extracting symbol code: {e}")
         return ""
-
-
-def extract_inheritance_relations(
-    content: str,
-    symbols: List[Dict[str, Any]],
-) -> Dict[str, str]:
-    try:
-        lines = content.splitlines()
-        relations = {}
-
-        for symbol in symbols:
-            if symbol.get("kind") != 5:  # Not a class
-                continue
-
-            name = symbol.get("name")
-            if not name:
-                continue
-
-            line_num = (
-                symbol.get("location", {})
-                .get("range", {})
-                .get("start", {})
-                .get("line", 0)
-            )
-            if not (0 <= line_num < len(lines)):
-                continue
-
-            line = lines[line_num].strip()
-            pattern = rf"class\s+{re.escape(name)}\s*\((.*?)\)\s*:"
-            match = re.search(pattern, line)
-
-            if match:
-                base_classes = match.group(1).strip()
-                if base_classes:
-                    first_base = base_classes.split(",")[0].strip()
-                    if first_base:
-                        relations[name] = first_base
-
-        return relations
-    except Exception as e:
-        logger.trace(f"Error extracting inheritance relations: {e}")
-        return {}
-
-
-def find_enclosing_function(
-    symbols: List[Dict[str, Any]],
-    line: int,
-) -> Optional[str]:
-    def _search_symbols(syms: List[Dict[str, Any]]) -> Optional[str]:
-        result = None
-        for symbol in syms:
-            if symbol.get("kind") in (5, 6, 12):  # Function Method
-                rng = symbol.get("location", {}).get("range", {})
-                start_line = rng.get("start", {}).get("line", -1)
-                end_line = rng.get("end", {}).get("line", -1)
-                if start_line <= line <= end_line:
-                    result = symbol.get("name", "")
-
-            children = symbol.get("children", [])
-            if children:
-                nested_result = _search_symbols(children)
-                if nested_result:
-                    result = nested_result
-        return result
-
-    try:
-        return _search_symbols(symbols)
-    except Exception as e:
-        logger.trace(f"Error finding enclosing function: {e}")
-        return None
 
 
 def _should_process_file(path_obj: Path) -> bool:
@@ -196,15 +127,8 @@ async def get_client(path_str: str):
         lang = "cpp,*.hpp"
 
     async for py_file in list_all_files(path_str, f"*.{lang}"):
-        str_py_file = str(py_file)
-        if "tests/" in str_py_file or "test_" in str_py_file:
-            continue
-        # if "deprecated/" in str_py_file:
-        #     continue
         content = py_file.read_text(encoding="utf-8")
         if not content:
-            # if not str_py_file.endswith("__init__.py"):
-            #     logger.warning(f"file:{str_py_file} is empty")
             continue
         uri = path_to_file_uri(str(py_file))
         if not content:
@@ -906,10 +830,6 @@ async def _traverse(client, len_root_uri, start_entities, root_uri):
             for i, ref in enumerate(ref_result, 1):
                 ref_uri = ref.get("uri", "<no-uri>")
                 logger.trace(f"ref_uri {ref_uri}")
-                if "tests" in ref_uri:
-                    continue
-                if "test_" in ref_uri:
-                    continue
                 range_ = ref.get("range", {})
                 start = range_.get("start", {})
                 line = start.get("line", "?")
@@ -1023,7 +943,8 @@ class CallGraphAnalyzer:
                     caller_name = sym["name"]
                     caller_range = sym["location"]["range"]
                     start_line = caller_range["start"]["line"]
-                    func_body = self._extract_code(text, caller_range)
+                    end_line = caller_range["end"]["line"]
+                    func_body = extract_code(text, start_line, end_line)
                     # 4. 找调用的函数名（简单用正则，示例为 Python 调用）
                     called_names = self._find_called_functions(func_body)
 
@@ -1057,13 +978,6 @@ class CallGraphAnalyzer:
                 call_graph[caller_name].append(name)
 
         return call_graph
-
-    def _extract_code(self, text: str, rng: dict) -> str:
-        # 根据range（start/end行列）提取源码，示例只用行范围
-        lines = text.splitlines()
-        start_line = rng["start"]["line"]
-        end_line = rng["end"]["line"]
-        return "\n".join(lines[start_line : end_line + 1])
 
     def _find_called_functions(self, code: str) -> List[str]:
         # 简单示例用正则匹配函数调用：foo(...)，忽略复杂语法
