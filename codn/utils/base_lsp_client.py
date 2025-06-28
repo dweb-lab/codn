@@ -82,7 +82,7 @@ async def _handle_file_change(
             except (FileNotFoundError, PermissionError) as e:
                 logger.warning(f"Could not read file {file_path}: {e}")
     except Exception as e:
-        if not client._shutdown_event.is_set():
+        if not client.is_closing:
             logger.error(f"Error handling file change {file_path}: {e}")
 
 
@@ -94,16 +94,16 @@ async def watch_and_sync(client: BaseLSPClient, root_path: Path) -> None:
     try:
         logger.trace(f"Starting file watcher for: {root_path}")
         async for changes in awatch(root_path):
-            if client._shutdown_event.is_set():
+            if client.is_closing:
                 break
             for change_type, path_obj in changes:
-                if client._shutdown_event.is_set():
+                if client.is_closing:
                     break
                 file_path = Path(path_obj)
                 if _should_process_file(file_path):
                     await _handle_file_change(client, change_type, file_path)
     except Exception as e:
-        if not client._shutdown_event.is_set():
+        if not client.is_closing:
             logger.error(f"File watcher error: {e}")
 
 
@@ -985,7 +985,7 @@ class CallGraphAnalyzer:
         return re.findall(pattern, code)[1:]
 
 
-def position_for_name(code: str, name: str, start_line: int) -> dict:
+def position_for_name(code: str, name: str, start_line: int) -> dict[str, int]:
     # TODO 目前只是简单返回第一个找到调用名字的位置
     lines = code.splitlines()
     for lineno, line in enumerate(lines):

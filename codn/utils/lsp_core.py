@@ -57,6 +57,11 @@ class BaseLSPClient:
     def state(self) -> LSPClientState:
         return self._state
 
+    @property
+    def is_closing(self) -> bool:
+        """客户端是否处于关闭流程中（对外暴露为主）"""
+        return self._state in (LSPClientState.STOPPING, LSPClientState.STOPPED)
+
     async def start(self, lang: str) -> None:
         if self._state != LSPClientState.STOPPED:
             raise LSPError(f"Cannot start client in state: {self._state}")
