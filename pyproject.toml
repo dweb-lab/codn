@@ -8,7 +8,7 @@ version = "0.1.6"
 description = "A tiny, modular library for common coding tasks."
 authors = [{ name = "askender", email = "askender43@gmail.com" }]
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = "MIT"
 dependencies = [
     "typer",

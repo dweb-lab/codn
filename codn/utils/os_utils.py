@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import AsyncGenerator, Optional, Set, Union, List, Generator
+from typing import AsyncGenerator, Optional, Union, Generator
 import pathspec
 from collections import Counter, OrderedDict
 import asyncio
@@ -93,7 +93,7 @@ def load_gitignore(root_path: Path) -> pathspec.PathSpec:
 def should_ignore(
     file_path: Path,
     root_path: Path,
-    ignored_dirs: Set[str],
+    ignored_dirs: set[str],
     gitignore_spec: pathspec.PathSpec,
 ) -> bool:
     """Check if a file should be ignored based on directory names and gitignore
@@ -124,7 +124,7 @@ def should_ignore(
 async def list_all_files(
     root: Union[str, Path] = ".",
     pattern: str = "*",
-    ignored_dirs: Optional[Set[str]] = None,
+    ignored_dirs: Optional[set[str]] = None,
 ) -> AsyncGenerator[Path, None]:
     """Asynchronously yield all files in the directory tree.
 
@@ -156,7 +156,7 @@ async def list_all_files(
 def list_all_files_sync(
     root: Union[str, Path] = ".",
     pattern: str = "*",
-    ignored_dirs: Optional[Set[str]] = None,
+    ignored_dirs: Optional[set[str]] = None,
 ) -> list[Path]:
     return [f for f in gen_all_files_sync(root, pattern, ignored_dirs)]
 
@@ -164,7 +164,7 @@ def list_all_files_sync(
 def gen_all_files_sync(
     root: Union[str, Path] = ".",
     pattern: str = "*",
-    ignored_dirs: Optional[Set[str]] = None,
+    ignored_dirs: Optional[set[str]] = None,
 ) -> Generator[Path, None, None]:
     """同步版本，遍历目录树，生成符合条件的文件路径。
 
@@ -189,9 +189,9 @@ def gen_all_files_sync(
 
 def detect_dominant_languages(
     root: Union[str, Path] = ".",
-    ignored_dirs: Optional[Set[str]] = None,
+    ignored_dirs: Optional[set[str]] = None,
     top_n: int = 1,
-) -> List[str]:
+) -> list[str]:
     """检测目录中使用频率最高的语言类型列表（可能有多个并列）
 
     Args:
@@ -223,7 +223,7 @@ def detect_dominant_languages(
 
 
 async def group_files_by_dominant_language(
-    root: Union[str, Path] = ".", ignored_dirs: Optional[Set[str]] = None
+    root: Union[str, Path] = ".", ignored_dirs: Optional[set[str]] = None
 ) -> OrderedDict[str, list[Path]]:
     """返回一个有序字典，键是最高频语言，值是该语言下的所有文件路径。
 
@@ -232,10 +232,10 @@ async def group_files_by_dominant_language(
         ignored_dirs: 要忽略的目录名集合
 
     Returns:
-        OrderedDict[str, List[Path]]: 最高频语言及对应的文件路径列表
+        OrderedDict[str, list[Path]]: 最高频语言及对应的文件路径列表
     """
     lang_counter: Counter[str] = Counter()
-    file_lang_map = []
+    file_lang_map: list[tuple[Path, str]] = []
 
     async for file_path in list_all_files(root=root, ignored_dirs=ignored_dirs):
         if file_path.is_file():
@@ -254,7 +254,7 @@ async def group_files_by_dominant_language(
     ]
 
     # 按语言分组文件
-    result = OrderedDict()
+    result: OrderedDict[str, list[Path]] = OrderedDict()
     for lang in dominant_langs:
         result[lang] = [fp for fp, alang in file_lang_map if alang == lang]
 
@@ -262,7 +262,7 @@ async def group_files_by_dominant_language(
 
 
 def get_dominant_language_file_groups(
-    root: Union[str, Path] = ".", ignored_dirs: Optional[Set[str]] = None
+    root: Union[str, Path] = ".", ignored_dirs: Optional[set[str]] = None
 ) -> OrderedDict[str, list[Path]]:
     """同步版本：返回最高频语言及对应的文件路径（有序）
 

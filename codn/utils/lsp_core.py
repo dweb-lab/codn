@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from itertools import count
-from typing import Any, Dict, List, Set, Optional
+from typing import Any, Optional
 from typing import Callable, Awaitable, Tuple
 from loguru import logger
 from asyncio import Semaphore, Queue, create_task, gather
@@ -43,15 +43,15 @@ class BaseLSPClient:
         self.config = config or LSPConfig()
         self._msg_id = count(1)
         self._lock = asyncio.Lock()
-        self._pending: Dict[int, asyncio.Future] = {}
-        self._tasks: Set[asyncio.Task] = set()
+        self._pending: dict[int, asyncio.Future[Any]] = {}
+        self._tasks: set[asyncio.Task[Any]] = set()  # 当任务返回类型不确定时
         self._shutdown_event = asyncio.Event()
         self._state = LSPClientState.STOPPED
         self.proc: Optional[asyncio.subprocess.Process] = None
         self.lang = ""
-        self.open_files: Set[str] = set()
-        self.file_versions: Dict[str, int] = {}
-        self.file_states: Dict[str, Dict[str, Any]] = {}
+        self.open_files: set[str] = set()
+        self.file_versions: dict[str, int] = {}
+        self.file_states: dict[str, dict[str, Any]] = {}
 
     @property
     def state(self) -> LSPClientState:
@@ -117,7 +117,7 @@ class BaseLSPClient:
         await self._request("initialize", init_params)
         await self._notify("initialized", {})
 
-    async def _send(self, msg: Dict[str, Any]) -> None:
+    async def _send(self, msg: dict[str, Any]) -> None:
         if not self.proc or not self.proc.stdin:
             raise LSPError("LSP process not available")
         try:
@@ -129,7 +129,7 @@ class BaseLSPClient:
             raise LSPError(f"Failed to send message: {e}") from e
 
     async def _request(
-        self, method: str, params: Dict[str, Any], timeout: float = -1
+        self, method: str, params: dict[str, Any], timeout: float = -1
     ) -> Any:
         if timeout < 0:
             timeout = self.config.timeout
@@ -146,13 +146,12 @@ class BaseLSPClient:
             await self._send(
                 {"jsonrpc": "2.0", "id": msg_id, "method": method, "params": params},
             )
-            result = await asyncio.wait_for(future, timeout=timeout)
-
-            if isinstance(result, dict) and "error" in result:
-                error_msg = result["error"].get("message", "Unknown error")
+            result: dict[str, Any] = await asyncio.wait_for(future, timeout=timeout)
+            if "error" in result:
+                error_msg: str = result["error"].get("message", "Unknown error")
                 raise LSPError(f"LSP request failed: {error_msg}")
 
-            return result.get("result") if isinstance(result, dict) else result
+            return result.get("result")
         except asyncio.TimeoutError:
             self._pending.pop(msg_id, None)
             raise LSPError(f"Request {method} (id: {msg_id}) timed out")
@@ -164,7 +163,7 @@ class BaseLSPClient:
             async with self._lock:
                 self._pending.pop(msg_id, None)
 
-    async def _notify(self, method: str, params: Dict[str, Any]) -> None:
+    async def _notify(self, method: str, params: dict[str, Any]) -> None:
         if self._state not in (LSPClientState.RUNNING, LSPClientState.STARTING):
             if method not in ("initialized", "exit"):
                 raise LSPError(f"Cannot send notification in state: {self._state}")
@@ -205,8 +204,9 @@ class BaseLSPClient:
             if not self._shutdown_event.is_set():
                 logger.error(f"Fatal response loop error: {e}")
 
-    async def _read_headers(self) -> Dict[str, str]:
-        headers = {}
+    async def _read_headers(self) -> dict[str, str]:
+        """读取并解析 HTTP 头部，返回键值对字典."""
+        headers: dict[str, str] = {}  # 显式声明类型
         while True:
             line = await self._read_line()
             if not line or line == b"\r\n":
@@ -236,7 +236,7 @@ class BaseLSPClient:
             logger.trace(f"Error reading line: {e}")
         return bytes(line)
 
-    async def _read_body(self, length: int) -> Optional[Dict[str, Any]]:
+    async def _read_body(self, length: int) -> Optional[dict[str, Any]]:
         if not self.proc or not self.proc.stdout:
             return None
 
@@ -262,7 +262,7 @@ class BaseLSPClient:
             logger.error(f"Failed to read message body: {e}")
             return None
 
-    async def _handle_message(self, msg: Dict[str, Any]) -> None:
+    async def _handle_message(self, msg: dict[str, Any]) -> None:
         try:
             if msg_id := msg.get("id"):
                 async with self._lock:
@@ -285,7 +285,7 @@ class BaseLSPClient:
         except Exception as e:
             logger.error(f"Error handling message: {e}")
 
-    async def _handle_diagnostics(self, params: Dict[str, Any]) -> None:
+    async def _handle_diagnostics(self, params: dict[str, Any]) -> None:
         uri = params.get("uri", "")
         diagnostics = params.get("diagnostics", [])
         if diagnostics:
@@ -295,17 +295,18 @@ class BaseLSPClient:
                 line = diag.get("range", {}).get("start", {}).get("line", 0)
                 logger.trace(f"  Line {line + 1}: {message}")
 
-    async def _handle_log_message(self, params: Dict[str, Any]) -> None:
-        message = params.get("message", "")
-        msg_type = params.get("type", 1)
+    async def _handle_log_message(self, params: dict[str, Any]) -> None:
+        """处理 LSP 日志消息，根据类型分派到不同的日志级别."""
+        message: str = str(params.get("message", ""))
+        msg_type: int = int(params.get("type", 1))
         if msg_type > 2:
             return
-        log_func = [logger.error, logger.warning, logger.trace, logger.trace][
+        log_func = [logger.error, logger.warning, logger.debug, logger.trace][
             min(msg_type - 1, 3)
         ]
         log_func(f"LSP: {message}")
 
-    async def _handle_show_message(self, params: Dict[str, Any]) -> None:
+    async def _handle_show_message(self, params: dict[str, Any]) -> None:
         message = params.get("message", "")
         msg_type = params.get("type", 1)
         logger.trace(f"LSP Message (type {msg_type}): {message}")
@@ -393,25 +394,22 @@ class BaseLSPClient:
         content: str,
         language_id: str = "",
     ) -> None:
-        if not uri or not isinstance(content, str):
-            raise ValueError("Invalid parameters for didOpen")
+        """发送 textDocument/didOpen 通知到语言服务器."""
         await self._manage_file_state(uri, "open", content, language_id)
 
     async def send_did_change(self, uri: str, content: str) -> None:
-        if not uri or not isinstance(content, str):
-            raise ValueError("Invalid parameters for didChange")
         await self._manage_file_state(uri, "change", content)
 
     async def stream_requests(
         self,
         method: Callable[..., Awaitable[Any]],
-        args_list: List[Tuple[Any, ...]],
+        args_list: list[Tuple[Any, ...]],
         *,
         max_concurrency: int = 10,
         show_progress: bool = True,
         progress_every: int = 10,  # 每N个任务打印一次
         progress_interval: float = 1.0,  # 最小打印间隔（秒）
-    ) -> List[Any]:
+    ) -> list[Any]:
         total = len(args_list)
         semaphore = Semaphore(max_concurrency)
         queue: Queue[Tuple[int, Any]] = Queue()
@@ -463,10 +461,10 @@ class BaseLSPClient:
     async def batch_requests(
         self,
         method: Callable[..., Awaitable[Any]],
-        args_list: List[Tuple[Any, ...]],
+        args_list: list[Tuple[Any, ...]],
         *,
         max_concurrency: int = 100,
-    ) -> List[Any]:
+    ) -> list[Any]:
         """批量并发执行多个请求（如 send_references 等）
 
         Args:
@@ -479,7 +477,7 @@ class BaseLSPClient:
         """
         semaphore = asyncio.Semaphore(max_concurrency)
 
-        async def _run_with_semaphore(args: Tuple[Any, ...]) -> Any:
+        async def _run_with_semaphore(args: tuple[Any, ...]) -> Any:
             async with semaphore:
                 try:
                     return await method(*args)
