@@ -24,7 +24,7 @@ DEFAULT_SKIP_DIRS = {
 
 
 # 映射常见文件扩展名到语言类型
-LANG_TO_LANGUAGE = {
+LANG_TO_LANGUAGE: dict[str, str] = {
     "py": "python",
     "js": "javascript",
     "ts": "typescript",

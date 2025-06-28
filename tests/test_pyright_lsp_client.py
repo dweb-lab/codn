@@ -11,11 +11,11 @@ from unittest.mock import AsyncMock, patch  # Mock
 import pytest
 
 from codn.utils.lsp_core import LSPClientState, LSPConfig
+from codn.utils.lsp_utils import extract_inheritance_relations
 from codn.utils.base_lsp_client import (
     LSPError,
     BaseLSPClient,
     _should_process_file,
-    extract_inheritance_relations,
     extract_symbol_code,
     find_enclosing_function,
     path_to_file_uri,

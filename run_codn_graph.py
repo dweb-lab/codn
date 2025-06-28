@@ -8,9 +8,9 @@ from urllib.parse import unquote, urlparse
 from watchfiles import awatch
 from codn.utils.os_utils import list_all_files
 
+from codn.utils.lsp_utils import extract_inheritance_relations
 from codn.utils.base_lsp_client import (
     BaseLSPClient,
-    extract_inheritance_relations,
     extract_symbol_code,
     find_enclosing_function,
     path_to_file_uri,
