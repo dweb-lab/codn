@@ -169,6 +169,7 @@ async def test_get_snippet(mocker, fs):
             },
         }
     ]
+    mock_client_instance.read_file.return_value = file_content  # Add this line
     mock_client_instance.shutdown = mocker.AsyncMock()
 
     mocker.patch(

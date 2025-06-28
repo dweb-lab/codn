@@ -53,9 +53,9 @@ def extract_symbol_code(sym: dict[str, Any], content: str, strip: bool = False) 
         return ""
 
 
-def _should_process_file(path_obj: Path) -> bool:
+def _should_process_file(path_obj: Path, expected_extensions: tuple[str, ...]) -> bool:
     path_str = str(path_obj)
-    if not path_str.endswith((".py", ".pyi")):
+    if not path_str.endswith(expected_extensions):
         return False
     skip_dirs = {".git", "__pycache__", ".pytest_cache", "node_modules"}
     return not any(part in path_obj.parts for part in skip_dirs)
@@ -91,6 +91,15 @@ async def watch_and_sync(client: BaseLSPClient, root_path: Path) -> None:
         logger.error(f"Root path does not exist: {root_path}")
         return
 
+    # Determine expected extensions based on client's language
+    lang = client.lang
+    file_ext = LANG_TO_EXTENSION.get(lang, lang)
+    if lang == "c":
+        file_ext = "c,h"
+    if lang == "cpp":
+        file_ext = "cpp,hpp"
+    expected_extensions = tuple(f".{ext}" for ext in file_ext.split(","))
+
     try:
         logger.trace(f"Starting file watcher for: {root_path}")
         async for changes in awatch(root_path):
@@ -100,7 +109,7 @@ async def watch_and_sync(client: BaseLSPClient, root_path: Path) -> None:
                 if client.is_closing:
                     break
                 file_path = Path(path_obj)
-                if _should_process_file(file_path):
+                if _should_process_file(file_path, expected_extensions):
                     await _handle_file_change(client, change_type, file_path)
     except Exception as e:
         if not client.is_closing:
@@ -143,13 +152,12 @@ async def get_snippet(entity_name=None, path_str="."):
     l_code_snippets = []
     for uri in client.open_files:
         symbols = await client.send_document_symbol(uri)
-        local_path = unquote(urlparse(uri).path)
 
         for sym in symbols:
             name = sym["name"]
             if entity_name and name != entity_name:
                 continue
-            content = open(local_path).read()
+            content = await client.read_file(uri)
             code_snippet = extract_symbol_code(sym, content)
             # logger.trace(f"==Code Snippet:\n{code_snippet}")
             l_code_snippets.append(code_snippet)
@@ -173,12 +181,6 @@ async def get_funcs_for_lines(
 
     full_path = os.path.join(path_str, file_name)
     if not content:
-        if not os.path.isfile(full_path):
-            raise FileNotFoundError(f"File not found: {full_path}")
-        with open(full_path) as f:
-            content = f.read()
-
-    if not content:
         logger.error(f"Empty file: {full_path}")
 
     d_func_name = {}
@@ -192,6 +194,9 @@ async def get_funcs_for_lines(
 
     uri = path_to_file_uri(str(full_path))
     await client.send_did_open(uri, content, language_id)
+
+    # Read content from client after opening
+    content = await client.read_file(uri)
 
     symbols = await client.send_document_symbol(uri)
     for sym in symbols:
@@ -238,7 +243,7 @@ async def get_snippets_by_line_nums(
         local_path = unquote(urlparse(uri).path)
         _local_path = local_path[len(str_root_path) + 1 :]
         if _local_path == file_path_or_pattern:
-            content = open(local_path).read()
+            content = await client.read_file(uri)
             l_content = content.split("\n")
             content = "\n".join(l_content[start:end])
             l_code_snippets.append(content)
@@ -293,7 +298,7 @@ async def get_snippets(search_terms: list[str], path_str=".", file_path_or_patte
                 _local_path, file_path_or_pattern
             ):
                 continue
-            content = open(local_path).read()
+            content = await client.read_file(uri)
             l_code_snippets.append(content)
 
     if search_type == "symbols":
@@ -310,7 +315,7 @@ async def get_snippets(search_terms: list[str], path_str=".", file_path_or_patte
                 name = sym["name"]
                 if name not in _search_terms:
                     continue
-                content = open(local_path).read()
+                content = await client.read_file(uri)
                 code_snippet = extract_symbol_code(sym, content)
                 l_code_snippets.append(code_snippet)
 
@@ -337,7 +342,7 @@ async def get_snippets(search_terms: list[str], path_str=".", file_path_or_patte
                 full_name_with_file = f"{_local_path}:{full_name}"
                 if full_name_with_file not in _search_terms:
                     continue
-                content = open(local_path).read()
+                content = await client.read_file(uri)
                 code_snippet = extract_symbol_code(sym, content)
                 l_code_snippets.append(code_snippet)
 
@@ -489,7 +494,6 @@ def check_real_func_char(_line, line, real_func_char, full_name, kind, uri, func
             real_func_char = final_prefix
         if not raw_line[real_func_char:].strip().startswith(full_name):
             raw_first_line = repr(raw_line.split("\n")[0])
-            print("==", repr(raw_line[real_func_char:]), repr(full_name))
             raise ValueError(
                 f"Unexpected def line={raw_first_line} full_name={full_name} _line={_line} uri={uri}:{func_line}"
             )
@@ -499,7 +503,6 @@ def check_real_func_char(_line, line, real_func_char, full_name, kind, uri, func
             real_func_char = final_prefix
             if not raw_line[real_func_char:].startswith(full_name):
                 raw_first_line = repr(raw_line.split("\n")[0])
-                print("==", raw_line[real_func_char:])
                 raise ValueError(
                     f"Unexpected class raw_first_line={raw_first_line} _line={_line} full_name={full_name} uri={uri}:{func_line}"
                 )
@@ -785,44 +788,32 @@ async def _traverse(client, len_root_uri, start_entities, root_uri):
                 continue
 
             # func_char wrong
-            if func_char not in [0, 4, 8, 12, 16, 20, 24, 28]:
-                raise ValueError(
-                    f"func: {func_name} in {uri_short}:{func_line + 1} func_char is {func_char}"
-                )
+            # if func_char not in [0, 4, 8, 12, 16, 20, 24, 28]:
+            #     raise ValueError(
+            #         f"func: {func_name} in {uri_short}:{func_line + 1} func_char is {func_char}"
+            #     )
 
             ref_result = None
             # logx.info(f" func: {uri}:{func_line}:{func_char}")
-            if kind in [12, 6]:
-                func_char += 4  # def
-                ref_result = await client.send_references(
-                    uri, line=func_line, character=func_char
-                )
-                if not ref_result:
-                    func_char += 6  # async
-                    ref_result = await client.send_references(
-                        uri, line=func_line, character=func_char
-                    )
-                    if not ref_result:
-                        logger.trace(
-                            f"No references found for func: {uri}:{func_line}:{func_char}"
-                        )
-                        continue
+            content = await client.read_file(uri)
+            line_content = "\n".join(content.split("\n")[func_line : func_line + 10])
+            _line = line_content
+            while _line.strip().startswith("#") or _line.strip().startswith("@"):
+                _line = "\n".join(_line.split("\n")[1:])
 
-            if kind in [5]:
-                func_char += 6  # class
+            real_func_char = check_real_func_char(
+                _line, line_content, func_char, full_name, kind, uri, func_line
+            )
+
+            if kind in [12, 6, 5]:  # func, method, class
                 ref_result = await client.send_references(
-                    uri, line=func_line, character=func_char
+                    uri, line=func_line, character=real_func_char
                 )
                 if not ref_result:
-                    func_char += 6  # async
-                    ref_result = await client.send_references(
-                        uri, line=func_line, character=func_char
+                    logger.trace(
+                        f"No references found for func: {uri}:{func_line}:{func_char}"
                     )
-                    if not ref_result:
-                        logger.trace(
-                            f"No references found for func: {uri}:{func_line}:{func_char}"
-                        )
-                        continue
+                    continue
 
             if not ref_result:
                 raise ValueError(

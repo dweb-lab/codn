@@ -388,19 +388,19 @@ class TestFileWatcher:
         py_file = temp_dir / "test.py"
         py_file.touch()
 
-        assert _should_process_file(py_file) is True
+        assert _should_process_file(py_file, (".py", ".pyi")) is True
 
         pyi_file = temp_dir / "test.pyi"
         pyi_file.touch()
 
-        assert _should_process_file(pyi_file) is True
+        assert _should_process_file(pyi_file, (".py", ".pyi")) is True
 
     def test_should_process_file_non_python(self, temp_dir):
         """Test not processing non-Python files."""
         txt_file = temp_dir / "test.txt"
         txt_file.touch()
 
-        assert _should_process_file(txt_file) is False
+        assert _should_process_file(txt_file, (".py", ".pyi")) is False
 
     def test_should_process_file_skip_directories(self, temp_dir):
         """Test skipping certain directories."""
@@ -408,13 +408,13 @@ class TestFileWatcher:
         git_file.parent.mkdir()
         git_file.touch()
 
-        assert _should_process_file(git_file) is False
+        assert _should_process_file(git_file, (".py", ".pyi")) is False
 
         cache_file = temp_dir / "__pycache__" / "test.pyc"
         cache_file.parent.mkdir()
         cache_file.touch()
 
-        assert _should_process_file(cache_file) is False
+        assert _should_process_file(cache_file, (".py", ".pyi")) is False
 
 
 @pytest.mark.integration

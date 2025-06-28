@@ -1,7 +1,7 @@
 import asyncio
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from itertools import count
 from typing import Any, Optional
@@ -9,13 +9,6 @@ from typing import Callable, Awaitable, Tuple
 from loguru import logger
 from asyncio import Semaphore, Queue, create_task, gather
 
-LSP_COMMANDS = {
-    "cpp": ["clangd"],
-    "c": ["clangd", "--pch-storage=memory"],
-    "py": ["pyright-langserver", "--stdio"],
-    "ts": ["typescript-language-server", "--stdio"],
-    "tsx": ["typescript-language-server", "--stdio"],
-}
 DEFAULT_TIMEOUT = 30
 
 
@@ -35,6 +28,15 @@ class LSPConfig:
     timeout: float = DEFAULT_TIMEOUT
     enable_file_watcher: bool = True
     log_level: str = "INFO"
+    lsp_commands: dict[str, list[str]] = field(
+        default_factory=lambda: {
+            "cpp": ["clangd"],
+            "c": ["clangd", "--pch-storage=memory"],
+            "py": ["pyright-langserver", "--stdio"],
+            "ts": ["typescript-language-server", "--stdio"],
+            "tsx": ["typescript-language-server", "--stdio"],
+        }
+    )
 
 
 class BaseLSPClient:
@@ -79,8 +81,11 @@ class BaseLSPClient:
 
     async def _start_subprocess(self, lang: str) -> None:
         try:
+            commands = self.config.lsp_commands.get(lang)
+            if not commands:
+                raise LSPError(f"No LSP commands configured for language: {lang}")
             self.proc = await asyncio.create_subprocess_exec(
-                *LSP_COMMANDS[lang],
+                *commands,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
