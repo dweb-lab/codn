@@ -434,3 +434,7 @@ list-tests:
 test-marker:
 	@read -p "Enter marker name: " marker; \
 	uv run pytest -m $$marker -v
+
+lock:
+	uv sync
+	uv pip compile pyproject.toml --format pylock.toml -o pylock.toml
