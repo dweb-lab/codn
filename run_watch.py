@@ -5,10 +5,10 @@ from pathlib import Path
 from loguru import logger
 import os
 
+from codn.utils.lsp_core import LSPConfig
 from codn.utils.base_lsp_client import (
     BaseLSPClient,
     path_to_file_uri,
-    LSPConfig,
     watch_and_sync,
 )
 
