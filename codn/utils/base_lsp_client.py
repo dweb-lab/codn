@@ -594,7 +594,7 @@ async def get_refs_clean(entity_name=None, path_str=".", l_done=None):
 
     d_line_symbol = {}
     for params in l_params:
-        uri, func_line, real_func_char, name = params
+        uri, func_line, real_func_char, _ = params
         d_line_symbol[f"{uri}\t{func_line}"] = params
     l_params_left = l_params
 
@@ -629,7 +629,7 @@ async def get_refs_clean(entity_name=None, path_str=".", l_done=None):
         logger.info(f"==l_params_left== {len(l_params_left)}")
 
     n_symbols = 0
-    for uri, func_line, real_func_char, func_name, ref_result, dur in results:
+    for uri, func_line, real_func_char, func_name, ref_result, _ in results:
         if not ref_result:
             continue
         n_symbols += 1
@@ -879,8 +879,8 @@ async def traverse(
             _l_refs = await _traverse(client, len_root_uri, start_entities, root_uri)
             for i in list(_l_refs):
                 l_refs.add(i)
-                a, b, c = i.split("\t")
-                x, y, z = a.split(":")
+                a = i.split("\t")[0]
+                z = a.split(":")[-1]
                 if z != "None":
                     todo.append(a)
         current_depth = 2
@@ -888,8 +888,8 @@ async def traverse(
             _l_refs = await _traverse(client, len_root_uri, todo, root_uri)
             for i in list(_l_refs):
                 l_refs.add(i)
-                a, b, c = i.split("\t")
-                x, y, z = a.split(":")
+                a = i.split("\t")[0]
+                z = a.split(":")[-1]
                 if z != "None":
                     todo.append(a)
             current_depth += 1
