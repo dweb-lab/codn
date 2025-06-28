@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.1.6] - 2025-06-28
+
+### 🔧 Chores
+- bump version to 0.1.6.dev0 and add asttokens dependency
+- prepare and document changes for v0.1.5
+
+### 🔨 Refactoring
+- improve C reference analysis and update script structure
+- update imports to reflect LSP client refactor
+- restructure and enhance reference analysis
+- improve reference extraction and timeout handling
+
+
 
 ## [0.1.5] - 2025-06-27
 
@@ -183,7 +196,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - LSP client for static analysis integration
 - Cross-platform compatibility
 
-[Unreleased]: https://github.com/dweb-lab/codn/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/dweb-lab/codn/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/dweb-lab/codn/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/dweb-lab/codn/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/dweb-lab/codn/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/dweb-lab/codn/compare/v0.1.2...v0.1.3
