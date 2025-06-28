@@ -4,13 +4,20 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "codn"
-version = "0.1.5"
+version = "0.1.6.dev0"
 description = "A tiny, modular library for common coding tasks."
 authors = [{ name = "askender", email = "askender43@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"
-dependencies = ["typer", "watchfiles", "pathspec", "loguru", "rich"]
+dependencies = [
+    "typer",
+    "watchfiles",
+    "pathspec",
+    "loguru",
+    "rich",
+    "asttokens",
+]
 
 [dependency-groups]
 test = [

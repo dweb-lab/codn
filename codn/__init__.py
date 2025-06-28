@@ -8,7 +8,7 @@ This package provides utilities for Python development including:
 - File system operations with gitignore support
 """
 
-__version__ = "0.1.5"
+__version__ = "0.1.6.dev0"
 __author__ = "askender"
 __email__ = "askender43@gmail.com"
 
