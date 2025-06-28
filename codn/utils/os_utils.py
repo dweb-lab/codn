@@ -49,6 +49,30 @@ LANG_TO_LANGUAGE: dict[str, str] = {
     "yaml": "yaml",
 }
 
+LANG_TO_EXTENSION: dict[str, str] = {
+    "python": "py",
+    "javascript": "js",
+    "typescript": "ts",
+    "java": "java",
+    "cpp": "cpp",
+    "c": "c",
+    "csharp": "cs",
+    "go": "go",
+    "ruby": "rb",
+    "php": "php",
+    "rust": "rs",
+    "swift": "swift",
+    "kotlin": "kt",
+    "objective-c": "m",
+    "shell": "sh",
+    "html": "html",
+    "css": "css",
+    "lua": "lua",
+    "json": "json",
+    "xml": "xml",
+    "yaml": "yml",
+}
+
 
 EXTENSION_TO_LANGUAGE_FULL = {
     ".py": "Python",

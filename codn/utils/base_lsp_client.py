@@ -5,7 +5,7 @@ from pathlib import Path
 from codn.utils.lsp_core import BaseLSPClient, LSPError  # noqa
 from typing import Any
 from loguru import logger
-from codn.utils.os_utils import LANG_TO_LANGUAGE
+from codn.utils.os_utils import LANG_TO_LANGUAGE, LANG_TO_EXTENSION
 from codn.utils.os_utils import list_all_files, detect_dominant_languages
 from codn.utils.lsp_utils import extract_code, find_enclosing_function
 from urllib.parse import unquote, urlparse
@@ -121,12 +121,13 @@ async def get_client(path_str: str):
     await client.start(lang)
     logger.debug(f"Started LSP client for {lang} at {root_path}")
     language_id = LANG_TO_LANGUAGE.get(lang, lang)
+    file_ext = LANG_TO_EXTENSION.get(lang, lang)
     if lang == "c":
-        lang = "c,*.h"
+        file_ext = "c,h"
     if lang == "cpp":
-        lang = "cpp,*.hpp"
+        file_ext = "cpp,hpp"
 
-    async for py_file in list_all_files(path_str, f"*.{lang}"):
+    async for py_file in list_all_files(path_str, f"*.{file_ext}"):
         content = py_file.read_text(encoding="utf-8")
         if not content:
             continue
