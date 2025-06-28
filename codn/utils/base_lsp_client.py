@@ -3,13 +3,13 @@ import os
 import asyncio
 from pathlib import Path
 from codn.utils.lsp_core import BaseLSPClient, LSPError  # noqa
-from typing import Any, Dict, List
+from typing import Any
 from loguru import logger
 from codn.utils.os_utils import LANG_TO_LANGUAGE
 from codn.utils.os_utils import list_all_files, detect_dominant_languages
 from codn.utils.lsp_utils import extract_code, find_enclosing_function
 from urllib.parse import unquote, urlparse
-from watchfiles import awatch
+from watchfiles import awatch  # type: ignore[reportUnknownVariableType]
 
 # Variable Constant Field Enum Constructor Namespace Property
 l_sym_ignore = [int(j) for j in "13 14 8 10 15 9 3 7".split()]
@@ -19,7 +19,7 @@ def path_to_file_uri(path_str: str) -> str:
     return Path(path_str).resolve().as_uri()
 
 
-def extract_symbol_code(sym: Dict[str, Any], content: str, strip: bool = False) -> str:
+def extract_symbol_code(sym: dict[str, Any], content: str, strip: bool = False) -> str:
     try:
         rng = sym.get("location", {}).get("range", {})
         if not rng:
@@ -224,7 +224,7 @@ def get_search_type(search_terms):
 
 
 async def get_snippets_by_line_nums(
-    line_nums: List[int], file_path_or_pattern: str, path_str="."
+    line_nums: list[int], file_path_or_pattern: str, path_str="."
 ):
     if not line_nums or len(line_nums) != 2:
         return []
@@ -268,7 +268,7 @@ async def get_filenames_by_pattern(path_str=".", pattern=""):
     return filenames
 
 
-async def get_snippets(search_terms: List[str], path_str=".", file_path_or_pattern=""):
+async def get_snippets(search_terms: list[str], path_str=".", file_path_or_pattern=""):
     if not search_terms:
         return []
     search_type = get_search_type(search_terms)
@@ -917,8 +917,8 @@ class CallGraphAnalyzer:
     def __init__(self, client: BaseLSPClient):
         self.client = client  # 你的LSP客户端实例
 
-    async def analyze_project(self, file_uris: List[str]) -> Dict[str, List[str]]:
-        call_graph: Dict[str, List[str]] = {}
+    async def analyze_project(self, file_uris: list[str]) -> dict[str, list[str]]:
+        call_graph: dict[str, list[str]] = {}
 
         l_uri = [(uri,) for uri in file_uris]
         results = await self.client.stream_requests(
@@ -979,7 +979,7 @@ class CallGraphAnalyzer:
 
         return call_graph
 
-    def _find_called_functions(self, code: str) -> List[str]:
+    def _find_called_functions(self, code: str) -> list[str]:
         # 简单示例用正则匹配函数调用：foo(...)，忽略复杂语法
         pattern = r"(\w+)\s*\("
         return re.findall(pattern, code)[1:]
