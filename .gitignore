@@ -216,3 +216,5 @@ mypy.xml
 test_*.log
 test_output/
 .testmondata
+
+uv.lock
