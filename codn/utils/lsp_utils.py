@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from loguru import logger
 
 SYMBOL_KIND_MAP = {
@@ -42,10 +42,10 @@ def extract_code(text: str, start_line: int, end_line: int) -> str:
 
 
 def find_enclosing_function(
-    symbols: List[Dict[str, Any]],
+    symbols: list[dict[str, Any]],
     line: int,
 ) -> Optional[str]:
-    def _search_symbols(syms: List[Dict[str, Any]]) -> Optional[str]:
+    def _search_symbols(syms: list[dict[str, Any]]) -> Optional[str]:
         result = None
         for symbol in syms:
             if symbol.get("kind") in (5, 6, 12):  # Function Method
@@ -71,41 +71,31 @@ def find_enclosing_function(
 
 def extract_inheritance_relations(
     content: str,
-    symbols: List[Dict[str, Any]],
-) -> Dict[str, str]:
-    try:
-        lines = content.splitlines()
-        relations = {}
+    symbols: list[dict[str, Any]],
+) -> dict[str, str]:
+    """Extract {child_class: parent_class} from source code and LSP symbols."""
+    lines = content.splitlines()
+    relations: dict[str, str] = {}
 
-        for symbol in symbols:
-            if symbol.get("kind") != 5:  # Not a class
-                continue
+    for sym in symbols:
+        if sym.get("kind") != 5:
+            continue
 
-            name = symbol.get("name")
-            if not name:
-                continue
+        name = sym.get("name")
+        if not isinstance(name, str):
+            continue
 
-            line_num = (
-                symbol.get("location", {})
-                .get("range", {})
-                .get("start", {})
-                .get("line", 0)
-            )
-            if not (0 <= line_num < len(lines)):
-                continue
+        line_num = sym.get("location", {}).get("range", {}).get("start", {}).get("line")
+        if not isinstance(line_num, int) or not (0 <= line_num < len(lines)):
+            continue
 
-            line = lines[line_num].strip()
-            pattern = rf"class\s+{re.escape(name)}\s*\((.*?)\)\s*:"
-            match = re.search(pattern, line)
+        line = lines[line_num].strip()
+        match: Optional[re.Match[str]] = re.search(
+            rf"class\s+{re.escape(name)}\s*\(([^)]*)\)\s*:", line
+        )
+        if match:
+            bases = [b.strip() for b in match.group(1).split(",") if b.strip()]
+            if bases:
+                relations[name] = bases[0]
 
-            if match:
-                base_classes = match.group(1).strip()
-                if base_classes:
-                    first_base = base_classes.split(",")[0].strip()
-                    if first_base:
-                        relations[name] = first_base
-
-        return relations
-    except Exception as e:
-        logger.trace(f"Error extracting inheritance relations: {e}")
-        return {}
+    return relations

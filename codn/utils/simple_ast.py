@@ -1,7 +1,6 @@
 import ast
-from typing import Dict, List, Optional, Tuple, Union
 import asttokens
-from typing import TypedDict, Any
+from typing import Optional, Union, TypedDict, Any
 
 
 def find_enclosing_function(content: str, line: int, _character: int) -> Optional[str]:
@@ -22,7 +21,7 @@ def find_enclosing_function(content: str, line: int, _character: int) -> Optiona
 
     asttokens.ASTTokens(content, tree=tree)
 
-    enclosing_functions: List[str] = []
+    enclosing_functions: list[str] = []
 
     class FunctionVisitor(ast.NodeVisitor):
         """Visitor to find functions containing the target line."""
@@ -87,21 +86,21 @@ def find_enclosing_function(content: str, line: int, _character: int) -> Optiona
     return enclosing_functions[-1] if enclosing_functions else None
 
 
-def extract_inheritance_relations(content: str) -> List[Tuple[str, str]]:
+def extract_inheritance_relations(content: str) -> list[tuple[str, str]]:
     """Extract class inheritance relationships from Python source code.
 
     Args:
         content: Python source code
 
     Returns:
-        List of tuples (child_class, parent_class)
+        list of tuples (child_class, parent_class)
     """
     try:
         tree = ast.parse(content)
     except SyntaxError:
         return []
 
-    relations: List[Tuple[str, str]] = []
+    relations: list[tuple[str, str]] = []
 
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef):
@@ -135,7 +134,7 @@ def _extract_base_name(base: ast.expr) -> Optional[str]:
     return None
 
 
-def find_function_references(content: str, function_name: str) -> List[Tuple[int, int]]:
+def find_function_references(content: str, function_name: str) -> list[tuple[int, int]]:
     """Find all references to a function in the given content.
 
     Args:
@@ -143,14 +142,14 @@ def find_function_references(content: str, function_name: str) -> List[Tuple[int
         function_name: Name of the function to find references for
 
     Returns:
-        List of tuples (line_number, column_offset) where the function is referenced
+        list of tuples (line_number, column_offset) where the function is referenced
     """
     try:
         tree = ast.parse(content)
     except SyntaxError:
         return []
 
-    references = []
+    references: list[tuple[int, int]] = []
 
     class ReferenceVisitor(ast.NodeVisitor):
         def visit_Name(self, node: ast.Name) -> None:
@@ -170,13 +169,13 @@ def find_function_references(content: str, function_name: str) -> List[Tuple[int
 
 class FunctionSignature(TypedDict, total=False):
     name: str
-    args: List[str]
+    args: list[str]
     is_async: bool
     # is_generator: bool
     # is_coroutine: bool
     # is_decorator: bool
-    # decorators: List[str]
-    # decorators_info: List[Dict[str, Any]]
+    # decorators: list[str]
+    # decorators_info: list[dict[str, Any]]
     docstring: Optional[str]
     return_type: Optional[str]
     line: int
@@ -186,21 +185,21 @@ class FunctionSignature(TypedDict, total=False):
 
 def extract_function_signatures(
     content: str,
-) -> List[FunctionSignature]:
+) -> list[FunctionSignature]:
     """Extract function signatures from Python source code.
 
     Args:
         content: Python source code
 
     Returns:
-        List of dictionaries containing function information
+        list of dictionaries containing function information
     """
     try:
         tree = ast.parse(content)
     except SyntaxError:
         return []
 
-    functions: List[FunctionSignature] = []
+    functions: list[FunctionSignature] = []
 
     class FunctionVisitor(ast.NodeVisitor):
         def _extract_function_info(
@@ -208,7 +207,7 @@ def extract_function_signatures(
             node: Union[ast.FunctionDef, ast.AsyncFunctionDef],
         ) -> None:
             args: list[str] = []
-            defaults = []
+            defaults: list[str] = []
 
             # Extract argument names
             args.extend(arg.arg for arg in node.args.args)
@@ -257,22 +256,22 @@ def extract_function_signatures(
     return functions
 
 
-def find_unused_imports(content: str) -> List[Tuple[str, int]]:
+def find_unused_imports(content: str) -> list[tuple[str, int]]:
     """Find unused imports in Python source code.
 
     Args:
         content: Python source code
 
     Returns:
-        List of tuples (import_name, line_number) for unused imports
+        list of tuples (import_name, line_number) for unused imports
     """
     try:
         tree = ast.parse(content)
     except SyntaxError:
         return []
 
-    imported_names = set()
-    used_names = set()
+    imported_names: set[tuple[str, int]] = set()
+    used_names: set[str] = set()
 
     class ImportVisitor(ast.NodeVisitor):
         def visit_Import(self, node: ast.Import) -> None:
@@ -298,7 +297,7 @@ def find_unused_imports(content: str) -> List[Tuple[str, int]]:
     visitor = ImportVisitor()
     visitor.visit(tree)
 
-    unused_imports = []
+    unused_imports: list[tuple[str, int]] = []
     for name, line in imported_names:
         if name not in used_names:
             unused_imports.append((name, line))
@@ -309,7 +308,7 @@ def find_unused_imports(content: str) -> List[Tuple[str, int]]:
 def extract_class_methods(
     content: str,
     class_name: Optional[str] = None,
-) -> List[Dict[str, object]]:
+) -> list[dict[str, object]]:
     """Extract methods from classes in Python source code.
 
     Args:
@@ -317,14 +316,14 @@ def extract_class_methods(
         class_name: Optional specific class name to extract methods from
 
     Returns:
-        List of dictionaries containing method information
+        list of dictionaries containing method information
     """
     try:
         tree = ast.parse(content)
     except SyntaxError:
         return []
 
-    methods = []
+    methods: list[dict[str, Any]] = []
 
     class ClassVisitor(ast.NodeVisitor):
         def visit_ClassDef(self, node: ast.ClassDef) -> None:
