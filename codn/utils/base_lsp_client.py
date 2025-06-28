@@ -1,30 +1,14 @@
-import asyncio
-import json
 import re
 import os
-from dataclasses import dataclass
-from enum import Enum
-from itertools import count
+import asyncio
 from pathlib import Path
-from typing import Any, Dict, List, Set, Optional
-from typing import Callable, Awaitable, Tuple
+from codn.utils.lsp_core import BaseLSPClient, LSPError  # noqa
+from typing import Any, Dict, List, Optional
 from loguru import logger
-from watchfiles import awatch
-from asyncio import Semaphore, Queue, create_task, gather
+from codn.utils.os_utils import LANG_TO_LANGUAGE
 from codn.utils.os_utils import list_all_files, detect_dominant_languages
 from urllib.parse import unquote, urlparse
-import time
-from codn.utils.os_utils import LANG_TO_LANGUAGE
-
-LSP_COMMANDS = {
-    "cpp": ["clangd"],
-    "c": ["clangd", "--pch-storage=memory"],
-    "py": ["pyright-langserver", "--stdio"],
-    "ts": ["typescript-language-server", "--stdio"],
-    "tsx": ["typescript-language-server", "--stdio"],
-}
-DEFAULT_TIMEOUT = 30  # 0.1
-BUFFER_SIZE = 8192
+from watchfiles import awatch
 
 # Variable Constant Field Enum Constructor Namespace Property
 l_sym_ignore = [int(j) for j in "13 14 8 10 15 9 3 7".split()]
@@ -32,616 +16,6 @@ l_sym_ignore = [int(j) for j in "13 14 8 10 15 9 3 7".split()]
 
 def path_to_file_uri(path_str: str) -> str:
     return Path(path_str).resolve().as_uri()
-
-
-class LSPError(Exception):
-    pass
-
-
-class LSPClientState(Enum):
-    STOPPED = "stopped"
-    STARTING = "starting"
-    RUNNING = "running"
-    STOPPING = "stopping"
-
-
-@dataclass
-class LSPConfig:
-    timeout: float = DEFAULT_TIMEOUT
-    enable_file_watcher: bool = True
-    log_level: str = "INFO"
-
-
-class BaseLSPClient:
-    def __init__(self, root_uri: str, config: Optional[LSPConfig] = None):
-        self.root_uri = root_uri
-        self.config = config or LSPConfig()
-        self._msg_id = count(1)
-        self.open_files: Set[str] = set()
-        self.file_versions: Dict[str, int] = {}
-        self._lock = asyncio.Lock()
-        self._pending: Dict[int, asyncio.Future] = {}
-        self.proc: Optional[asyncio.subprocess.Process] = None
-        self._tasks: Set[asyncio.Task] = set()
-        self._shutdown_event = asyncio.Event()
-        self._state = LSPClientState.STOPPED
-        self.file_states: Dict[str, Dict[str, Any]] = {}
-
-    @property
-    def state(self) -> LSPClientState:
-        return self._state
-
-    async def start(self, lang: str) -> None:
-        if self._state != LSPClientState.STOPPED:
-            raise LSPError(f"Cannot start client in state: {self._state}")
-
-        self._state = LSPClientState.STARTING
-        try:
-            await self._start_subprocess(lang)
-            await self._initialize()
-            self._state = LSPClientState.RUNNING
-            logger.trace("LSP client started successfully")
-        except Exception as e:
-            self._state = LSPClientState.STOPPED
-            await self._cleanup()
-            raise LSPError(f"Failed to start LSP client: {e}") from e
-
-    async def _start_subprocess(self, lang: str) -> None:
-        try:
-            self.proc = await asyncio.create_subprocess_exec(
-                *LSP_COMMANDS[lang],
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            task = asyncio.create_task(self._response_loop())
-            self._tasks.add(task)
-            task.add_done_callback(self._tasks.discard)
-        except FileNotFoundError:
-            raise LSPError("Pyright not found. Please install pyright-langserver.")
-        except Exception as e:
-            raise LSPError(f"Failed to start Pyright subprocess: {e}") from e
-
-    async def _initialize(self) -> None:
-        init_params = {
-            "processId": None,
-            "rootUri": self.root_uri,
-            "capabilities": {
-                "textDocument": {
-                    "synchronization": {
-                        "dynamicRegistration": True,
-                        "willSave": True,
-                        "didSave": True,
-                    },
-                    "completion": {"dynamicRegistration": True},
-                    "hover": {"dynamicRegistration": True},
-                    "definition": {"dynamicRegistration": True},
-                    "references": {"dynamicRegistration": True},
-                    "documentSymbol": {"dynamicRegistration": True},
-                },
-                "workspace": {
-                    "applyEdit": True,
-                    "workspaceEdit": {"documentChanges": True},
-                    "didChangeConfiguration": {"dynamicRegistration": True},
-                    "didChangeWatchedFiles": {"dynamicRegistration": True},
-                },
-            },
-            "workspaceFolders": [{"uri": self.root_uri, "name": "workspace"}],
-        }
-        await self._request("initialize", init_params)
-        await self._notify("initialized", {})
-
-    async def _send(self, msg: Dict[str, Any]) -> None:
-        if not self.proc or not self.proc.stdin:
-            raise LSPError("LSP process not available")
-        try:
-            data = json.dumps(msg).encode("utf-8")
-            header = f"Content-Length: {len(data)}\r\n\r\n".encode()
-            self.proc.stdin.write(header + data)
-            await self.proc.stdin.drain()
-        except Exception as e:
-            raise LSPError(f"Failed to send message: {e}") from e
-
-    async def _request(
-        self, method: str, params: Dict[str, Any], timeout: float = -1
-    ) -> Any:
-        if timeout < 0:
-            timeout = self.config.timeout
-        if self._state != LSPClientState.RUNNING and method != "initialize":
-            raise LSPError(f"Cannot send request in state: {self._state}")
-
-        msg_id = next(self._msg_id)
-        future: asyncio.Future[Any] = asyncio.Future()
-
-        async with self._lock:
-            self._pending[msg_id] = future
-
-        try:
-            await self._send(
-                {"jsonrpc": "2.0", "id": msg_id, "method": method, "params": params},
-            )
-            result = await asyncio.wait_for(future, timeout=timeout)
-
-            if isinstance(result, dict) and "error" in result:
-                error_msg = result["error"].get("message", "Unknown error")
-                raise LSPError(f"LSP request failed: {error_msg}")
-
-            return result.get("result") if isinstance(result, dict) else result
-        except asyncio.TimeoutError:
-            self._pending.pop(msg_id, None)
-            # return {"err": "timed out"}
-            # logger.error(f"Request {method} (id: {msg_id}) timed out. params {params}")
-            raise LSPError(f"Request {method} (id: {msg_id}) timed out")
-        except Exception as e:
-            if isinstance(e, LSPError):
-                raise
-            raise LSPError(f"Request {method} failed: {e}") from e
-        finally:
-            async with self._lock:
-                self._pending.pop(msg_id, None)
-
-    async def _notify(self, method: str, params: Dict[str, Any]) -> None:
-        if self._state not in (LSPClientState.RUNNING, LSPClientState.STARTING):
-            if method not in ("initialized", "exit"):
-                raise LSPError(f"Cannot send notification in state: {self._state}")
-        await self._send({"jsonrpc": "2.0", "method": method, "params": params})
-
-    async def _response_loop(self) -> None:
-        try:
-            while (
-                self.proc
-                and self.proc.stdout
-                and not self._shutdown_event.is_set()
-                and self.proc.returncode is None
-            ):
-                try:
-                    headers = await self._read_headers()
-                    if not headers:
-                        continue
-                    content_length = int(headers.get("Content-Length", 0))
-                    if content_length > 0:
-                        message = await self._read_body(content_length)
-                        if message:
-                            await self._handle_message(message)
-                except asyncio.CancelledError:
-                    break
-                except Exception as e:
-                    if not self._shutdown_event.is_set():
-                        logger.error(f"Response loop error: {e}")
-                        await asyncio.sleep(0.1)
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            if not self._shutdown_event.is_set():
-                logger.error(f"Fatal response loop error: {e}")
-
-    async def _read_headers(self) -> Dict[str, str]:
-        headers = {}
-        while True:
-            line = await self._read_line()
-            if not line or line == b"\r\n":
-                break
-            try:
-                decoded = line.decode("utf-8", errors="replace").strip()
-                if ":" in decoded:
-                    key, value = decoded.split(":", 1)
-                    headers[key.strip()] = value.strip()
-            except Exception as e:
-                logger.warning(f"Failed to parse header line: {e}")
-        return headers
-
-    async def _read_line(self) -> bytes:
-        if not self.proc or not self.proc.stdout:
-            return b""
-        line = bytearray()
-        try:
-            while True:
-                char = await self.proc.stdout.read(1)
-                if not char:
-                    break
-                line.extend(char)
-                if line.endswith(b"\r\n"):
-                    break
-        except Exception as e:
-            logger.trace(f"Error reading line: {e}")
-        return bytes(line)
-
-    async def _read_body(self, length: int) -> Optional[Dict[str, Any]]:
-        if not self.proc or not self.proc.stdout:
-            return None
-
-        data = bytearray()
-        remaining = length
-        try:
-            while remaining > 0:
-                chunk = await self.proc.stdout.read(remaining)
-                if not chunk:  # 流结束或读取失败
-                    break
-                data.extend(chunk)
-                remaining -= len(chunk)
-
-            if len(data) != length:
-                logger.error(f"Expected {length} bytes but got {len(data)} bytes")
-                return None
-
-            return json.loads(data.decode("utf-8", errors="replace"))
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON message: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Failed to read message body: {e}")
-            return None
-
-    async def _handle_message(self, msg: Dict[str, Any]) -> None:
-        try:
-            if msg_id := msg.get("id"):
-                async with self._lock:
-                    if future := self._pending.get(msg_id):
-                        if not future.done():
-                            future.set_result(msg)
-                        return
-
-            method = msg.get("method")
-            if not method:
-                return
-
-            params = msg.get("params", {})
-            if method == "textDocument/publishDiagnostics":
-                await self._handle_diagnostics(params)
-            elif method == "window/logMessage":
-                await self._handle_log_message(params)
-            elif method == "window/showMessage":
-                await self._handle_show_message(params)
-        except Exception as e:
-            logger.error(f"Error handling message: {e}")
-
-    async def _handle_diagnostics(self, params: Dict[str, Any]) -> None:
-        uri = params.get("uri", "")
-        diagnostics = params.get("diagnostics", [])
-        if diagnostics:
-            logger.trace(f"Diagnostics for {uri}: {len(diagnostics)} issues")
-            for diag in diagnostics:
-                message = diag.get("message", "")
-                line = diag.get("range", {}).get("start", {}).get("line", 0)
-                logger.trace(f"  Line {line + 1}: {message}")
-
-    async def _handle_log_message(self, params: Dict[str, Any]) -> None:
-        message = params.get("message", "")
-        msg_type = params.get("type", 1)
-        if msg_type > 2:
-            return
-        log_func = [logger.error, logger.warning, logger.trace, logger.trace][
-            min(msg_type - 1, 3)
-        ]
-        log_func(f"LSP: {message}")
-
-    async def _handle_show_message(self, params: Dict[str, Any]) -> None:
-        message = params.get("message", "")
-        msg_type = params.get("type", 1)
-        logger.trace(f"LSP Message (type {msg_type}): {message}")
-
-    async def _manage_file_state(
-        self,
-        uri: str,
-        action: str,
-        content: str = "",
-        language_id: str = "",
-    ) -> None:
-        """Unified file state management."""
-        async with self._lock:
-            if action == "open":
-                self.file_states[uri] = {
-                    "content": content,
-                    "language_id": language_id,
-                    "status": "open",
-                }
-                if uri in self.open_files:
-                    self.file_versions[uri] = self.file_versions.get(uri, 0) + 1
-                    await self._notify(
-                        "textDocument/didChange",
-                        {
-                            "textDocument": {
-                                "uri": uri,
-                                "version": self.file_versions[uri],
-                            },
-                            "contentChanges": [{"text": content}],
-                        },
-                    )
-                    return
-                self.open_files.add(uri)
-                self.file_versions[uri] = 1
-                await self._notify(
-                    "textDocument/didOpen",
-                    {
-                        "textDocument": {
-                            "uri": uri,
-                            "languageId": language_id,
-                            "version": 1,
-                            "text": content,
-                        },
-                    },
-                )
-            elif action == "change":
-                self.file_states[uri] = {
-                    "content": content,
-                    "language_id": language_id,
-                    "status": "change",
-                }
-                if uri not in self.open_files:
-                    await self._manage_file_state(uri, "open", content)
-                    return
-                self.file_versions[uri] = self.file_versions.get(uri, 0) + 1
-                await self._notify(
-                    "textDocument/didChange",
-                    {
-                        "textDocument": {
-                            "uri": uri,
-                            "version": self.file_versions[uri],
-                        },
-                        "contentChanges": [{"text": content}],
-                    },
-                )
-            elif action == "close":
-                if uri in self.open_files:
-                    self.open_files.remove(uri)
-                    self.file_versions.pop(uri, None)
-                    await self._notify(
-                        "textDocument/didClose",
-                        {"textDocument": {"uri": uri}},
-                    )
-
-    async def read_file(self, uri: str) -> str:
-        """根据uri读取当前缓存的文件内容，如果文件不存在或未打开，返回None。"""
-        state = self.file_states.get(uri, {})
-        if state and "content" in state:
-            return state["content"]
-        return ""
-
-    async def send_did_open(
-        self,
-        uri: str,
-        content: str,
-        language_id: str = "",
-    ) -> None:
-        if not uri or not isinstance(content, str):
-            raise ValueError("Invalid parameters for didOpen")
-        await self._manage_file_state(uri, "open", content, language_id)
-
-    async def send_did_change(self, uri: str, content: str) -> None:
-        if not uri or not isinstance(content, str):
-            raise ValueError("Invalid parameters for didChange")
-        await self._manage_file_state(uri, "change", content)
-
-    async def stream_requests(
-        self,
-        method: Callable[..., Awaitable[Any]],
-        args_list: List[Tuple[Any, ...]],
-        *,
-        max_concurrency: int = 10,
-        show_progress: bool = True,
-        progress_every: int = 10,  # 每N个任务打印一次
-        progress_interval: float = 1.0,  # 最小打印间隔（秒）
-    ) -> List[Any]:
-        total = len(args_list)
-        semaphore = Semaphore(max_concurrency)
-        queue: Queue[Tuple[int, Any]] = Queue()
-        results = [None] * total
-        completed = 0
-        last_print_time = time.perf_counter()
-        start_time = last_print_time
-        # printed = False
-
-        async def worker(index: int, args: Tuple[Any, ...]):
-            async with semaphore:
-                try:
-                    result = await method(*args)
-                    await queue.put((index, result))
-                except Exception as e:
-                    logger.error(f"Request failed at index {index}: {e}")
-                    await queue.put((index, None))
-
-        tasks = [create_task(worker(i, args)) for i, args in enumerate(args_list)]
-
-        for _ in range(total):
-            index, result = await queue.get()
-            results[index] = result
-            completed += 1
-
-            if show_progress:
-                now = time.perf_counter()
-                if (
-                    completed % progress_every == 0
-                    or (now - last_print_time) >= progress_interval
-                ):
-                    elapsed = now - start_time
-                    speed = completed / elapsed if elapsed > 0 else 0
-                    percent = (completed / total) * 100
-                    eta = (total - completed) / speed if speed > 0 else float("inf")
-                    logger.info(
-                        f"Progress: {completed}/{total} ({percent:.1f}%) "
-                        f"| Elapsed: {elapsed:.1f}s "
-                        f"| Speed: {speed:.2f}/s "
-                        f"| ETA: {eta:.1f}s",
-                        end="\n",
-                        flush=True,
-                    )
-                    # printed = True
-                    last_print_time = now
-
-        await gather(*tasks, return_exceptions=True)
-        return results
-
-    async def batch_requests(
-        self,
-        method: Callable[..., Awaitable[Any]],
-        args_list: List[Tuple[Any, ...]],
-        *,
-        max_concurrency: int = 100,
-    ) -> List[Any]:
-        """批量并发执行多个请求（如 send_references 等）
-
-        Args:
-            method: 类似 self.send_references 的方法
-            args_list: 每次调用方法所需的参数元组
-            max_concurrency: 最大并发数
-
-        Returns:
-            各请求的响应结果，顺序与输入顺序一致
-        """
-        semaphore = asyncio.Semaphore(max_concurrency)
-
-        async def _run_with_semaphore(args: Tuple[Any, ...]) -> Any:
-            async with semaphore:
-                try:
-                    return await method(*args)
-                except Exception as e:
-                    logger.error(f"Request failed: {e}")
-                    return None
-
-        tasks = [asyncio.create_task(_run_with_semaphore(args)) for args in args_list]
-        return await asyncio.gather(*tasks)
-
-    async def send_did_close(self, uri: str) -> None:
-        if not uri:
-            raise ValueError("Invalid URI for didClose")
-        await self._manage_file_state(uri, "close")
-
-    async def send_references(
-        self, uri: str, line: int, character: int, name: str = ""
-    ) -> Any:
-        if line < 0 or character < 0:
-            raise ValueError("Line and character must be non-negative")
-        start_time = time.perf_counter()
-        ret = await self._request(
-            "textDocument/references",
-            {
-                "textDocument": {"uri": uri},
-                "position": {"line": line, "character": character},
-                "context": {"includeDeclaration": False},
-            },
-        )
-        # return ret
-        duration = time.perf_counter() - start_time
-        # r = "\t".join(
-        #     [uri, str(line), str(character), json.dumps(ret), str(round(duration, 4))]
-        # )
-        # print(r)
-        return uri, line, character, name, ret, duration
-
-    async def send_definition(self, uri: str, line: int, character: int) -> Any:
-        if line < 0 or character < 0:
-            raise ValueError("Line and character must be non-negative")
-        return await self._request(
-            "textDocument/definition",
-            {
-                "textDocument": {"uri": uri},
-                "position": {"line": line, "character": character},
-            },
-        )
-
-    async def send_document_symbol(self, uri: str, timeout: float = -1) -> Any:
-        if not uri:
-            raise ValueError("URI is required for documentSymbol")
-        return await self._request(
-            "textDocument/documentSymbol",
-            {"textDocument": {"uri": uri}},
-            timeout,
-        )
-
-    async def shutdown(self) -> None:
-        if self._state in (LSPClientState.STOPPING, LSPClientState.STOPPED):
-            if self._state == LSPClientState.STOPPING:
-                await self._shutdown_event.wait()
-            return
-
-        self._state = LSPClientState.STOPPING
-        logger.trace("Shutting down LSP client...")
-
-        try:
-            self._shutdown_event.set()
-
-            async with self._lock:
-                for future in self._pending.values():
-                    if not future.done():
-                        future.cancel()
-                self._pending.clear()
-
-            if self.proc and self.state not in {
-                LSPClientState.STOPPING,
-                LSPClientState.STOPPED,
-            }:
-                try:
-                    await asyncio.wait_for(self._request("shutdown", {}), timeout=5.0)
-                except Exception as e:
-                    logger.warning(f"LSP shutdown request failed or timed out: {e}")
-                try:
-                    await self._notify("exit", {})
-                except Exception as e:
-                    logger.warning(f"LSP exit notify failed: {e}")
-            else:
-                logger.trace(f"LSP already stopping or stopped: {self.state}")
-
-            await self._cancel_tasks()
-            await self._cleanup()
-        except Exception as e:
-            logger.error(f"Error during shutdown: {e}")
-        finally:
-            self._state = LSPClientState.STOPPED
-            logger.trace("LSP client shutdown complete")
-
-    async def _cancel_tasks(self) -> None:
-        if not self._tasks:
-            return
-        for task in self._tasks:
-            if not task.done():
-                task.cancel()
-        if self._tasks:
-            try:
-                await asyncio.wait_for(
-                    asyncio.gather(*self._tasks, return_exceptions=True),
-                    timeout=5.0,
-                )
-            except asyncio.TimeoutError:
-                logger.warning("Some tasks did not complete within timeout")
-            finally:
-                self._tasks.clear()
-
-    async def _cleanup(self) -> None:
-        if self.proc:
-            try:
-                # 优先关闭 stdin
-                if self.proc.stdin and not self.proc.stdin.is_closing():
-                    self.proc.stdin.close()
-                    await self.proc.stdin.wait_closed()
-
-                for pipe in (self.proc.stdout, self.proc.stderr):
-                    if pipe:
-                        # 读取直到 EOF，或忽略（让子进程回收时自动关闭）
-                        try:
-                            await pipe.read()  # 或者 readuntil() 或 readline()
-                        except Exception as e:
-                            logger.debug(
-                                f"Error while reading from pipe during cleanup: {e}"
-                            )
-
-                # 等待子进程退出
-                if self.proc.returncode is None:
-                    self.proc.terminate()
-                    try:
-                        await asyncio.wait_for(self.proc.wait(), timeout=5.0)
-                    except asyncio.TimeoutError:
-                        self.proc.kill()
-                        await self.proc.wait()
-            except Exception as e:
-                logger.trace(f"Error during cleanup: {e}")
-            finally:
-                self.proc = None  # ✅ 断开引用，避免误用
-
-        # 清理状态
-        self.open_files.clear()
-        self.file_versions.clear()
-        async with self._lock:
-            self._pending.clear()
 
 
 def extract_symbol_code(sym: Dict[str, Any], content: str, strip: bool = False) -> str:
@@ -812,6 +186,7 @@ async def get_client(path_str: str):
     root_path = Path(path_str).resolve()
     root_uri = path_to_file_uri(str(root_path))
     client = BaseLSPClient(root_uri)
+    client.lang = lang
     await client.start(lang)
     logger.debug(f"Started LSP client for {lang} at {root_path}")
     language_id = LANG_TO_LANGUAGE.get(lang, lang)
@@ -843,8 +218,7 @@ async def get_snippet(entity_name=None, path_str="."):
     l_code_snippets = []
     for uri in client.open_files:
         symbols = await client.send_document_symbol(uri)
-        parsed = urlparse(uri)
-        local_path = unquote(parsed.path)
+        local_path = unquote(urlparse(uri).path)
 
         for sym in symbols:
             name = sym["name"]
@@ -936,8 +310,7 @@ async def get_snippets_by_line_nums(
     root_path = Path(path_str).resolve()
     str_root_path = str(root_path)
     for uri in client.open_files:
-        parsed = urlparse(uri)
-        local_path = unquote(parsed.path)
+        local_path = unquote(urlparse(uri).path)
         _local_path = local_path[len(str_root_path) + 1 :]
         if _local_path == file_path_or_pattern:
             content = open(local_path).read()
@@ -963,8 +336,7 @@ async def get_filenames_by_pattern(path_str=".", pattern=""):
 
     filenames = []
     for uri in client.open_files:
-        parsed = urlparse(uri)
-        local_path = unquote(parsed.path)
+        local_path = unquote(urlparse(uri).path)
         _local_path = local_path[len(str_root_path) + 1 :]
         if pattern and not match_pattern(_local_path, pattern):
             filenames.append(_local_path)
@@ -1124,12 +496,13 @@ async def get_refs(entity_name=None, path_str=".", l_done=None):
                     f"No references found for func: {uri}:{func_line}:{func_char} kind: {kind}"
                 )
             n_symbols += 1
+            ref_result = ref_result[4]
             for i, ref in enumerate(ref_result, 1):
                 if isinstance(ref, str):  # err
                     continue
                     print(f"ref {repr(ref)}")
                     raise
-                continue
+                # continue
                 ref_uri = ref.get("uri", "<no-uri>")
                 logger.trace(f"ref_uri {ref_uri}")
                 if "tests" in ref_uri:
@@ -1178,61 +551,33 @@ async def get_refs(entity_name=None, path_str=".", l_done=None):
     return l_refs
 
 
-def check_real_func_char(_line, line, real_func_char, full_name, kind):
+def check_real_func_char(_line, line, real_func_char, full_name, kind, uri, func_line):
+    if full_name.startswith("__builtin___"):
+        full_name = full_name[12:]
+    real_func_char = -1
+    raw_line = line
     if kind in [12, 6]:
-        final_prefix = 0
-        if _line.strip().startswith("static"):
-            base_prefix = line.index("static")
-            line = line[:base_prefix] + line[base_prefix + 7 :]
-            final_prefix += base_prefix + 7
-        if _line.strip().startswith("void"):
-            base_prefix = line.index("void")
-            line = line[:base_prefix] + line[base_prefix + 5 :]
-            final_prefix += base_prefix + 5
-            _line = line
-
-        if _line.strip().startswith("int"):
-            base_prefix = line.index("int")
-            line = line[:base_prefix] + line[base_prefix + 4 :]
-            final_prefix += base_prefix + 4
-            _line = line
-        if _line.strip().startswith("char *"):
-            base_prefix = line.index("char *")
-            line = line[:base_prefix] + line[base_prefix + 6 :]
-            final_prefix += base_prefix + 6
-            _line = line
-
-        if final_prefix:
-            pass
-        elif _line.strip().startswith("def"):
-            real_func_char = line.index("def") + 4
-        elif full_name in _line:
-            base_prefix = line.index(full_name)
-            line = line[:base_prefix] + line[base_prefix + len(full_name) :]
-            final_prefix += base_prefix + len(full_name)
-            _line = line
-
-        else:
-            first_line = repr(_line.split("\n")[0])
-            logger.error(f"Unexpected def line={first_line} full_name={full_name}")
-        real_func_char += final_prefix
-
+        final_prefix = None
+        if full_name in raw_line:
+            final_prefix = raw_line.index(full_name)
+        if final_prefix is not None:
+            real_func_char = final_prefix
+        if not raw_line[real_func_char:].strip().startswith(full_name):
+            raw_first_line = repr(raw_line.split("\n")[0])
+            print("==", repr(raw_line[real_func_char:]), repr(full_name))
+            raise ValueError(
+                f"Unexpected def line={raw_first_line} full_name={full_name} _line={_line} uri={uri}:{func_line}"
+            )
     elif kind in [5]:
-        final_prefix = 0
-        if final_prefix:
-            pass
-        elif _line.strip().startswith("class"):
-            real_func_char = line.index("class") + 6
-        elif _line.strip().startswith("typedef"):
-            pass
-        elif _line.strip().startswith("struct"):
-            pass
-        elif "struct " in _line.strip():
-            pass
-        else:
-            first_line = repr(_line.split("\n")[0])
-            logger.error(f"Unexpected class line: {first_line}")
-        real_func_char += final_prefix
+        if full_name in raw_line:
+            final_prefix = raw_line.index(full_name)
+            real_func_char = final_prefix
+            if not raw_line[real_func_char:].startswith(full_name):
+                raw_first_line = repr(raw_line.split("\n")[0])
+                print("==", raw_line[real_func_char:])
+                raise ValueError(
+                    f"Unexpected class raw_first_line={raw_first_line} _line={_line} full_name={full_name} uri={uri}:{func_line}"
+                )
 
     return real_func_char
 
@@ -1251,22 +596,6 @@ async def get_all_symbols(path_str=".", entity_name=None):
         raise ValueError(f"Unexpected number of results: {len(result)}")
     d_symbols = {uri[0]: symbols for uri, symbols in zip(l_uri, result)}
 
-    # l_uniq_symbols = set()
-    # for uri in client.open_files:
-    #     symbols = d_symbols[uri]
-    #     if not symbols:
-    #         logger.trace(f'no symbols in {uri}')
-    #         continue
-    #     for sym in symbols:
-    #         name = sym["name"]
-    #         full_name = name
-    #         if sym.get("containerName"):
-    #             container_name = sym["containerName"]
-    #             full_name = f"{container_name}.{name}"
-    #         assert name
-    #         l_uniq_symbols.add(full_name)
-    # logger.info(f"Got {len(l_uniq_symbols)} uniq symbols.")
-
     l_params = []
     for uri in client.open_files:
         symbols = d_symbols[uri]
@@ -1284,9 +613,10 @@ async def get_all_symbols(path_str=".", entity_name=None):
                 raise ValueError(f"Unexpected kind: {kind}, expected one of [12, 6, 5]")
             if name == "__init__" and "containerName" in sym:
                 continue
-            loc = sym["location"]["range"]["start"]
-            func_line = loc["line"]
-            func_char = loc["character"]
+            loc = sym["location"]["range"]
+            func_line = loc["start"]["line"]
+            func_end_line = loc["end"]["line"]
+            func_char = loc["start"]["character"]
             full_name = name
             if sym.get("containerName"):
                 container_name = sym["containerName"]
@@ -1304,20 +634,31 @@ async def get_all_symbols(path_str=".", entity_name=None):
                 continue
             # optional: check func_char for format checking
             content = await client.read_file(uri)
-            line = "\n".join(content.split("\n")[func_line : func_line + 10])
+            line = "\n".join(content.split("\n")[func_line : func_end_line + 1])
             _line = line
             while _line.strip().startswith("#") or _line.strip().startswith("@"):
                 _line = "\n".join(_line.split("\n")[1:])
 
+            if full_name == "(anonymous struct)":
+                continue
+
             real_func_char = check_real_func_char(
-                _line, line, func_char, full_name, kind
+                _line,
+                line,
+                func_char,
+                name,
+                kind,
+                uri,
+                func_line,
             )
+            if real_func_char < 0:
+                continue
             l_params.append((uri, func_line, real_func_char, name))
 
     return client, d_symbols, l_params
 
 
-async def get_refs_clean(entity_name=None, path_str="."):
+async def get_refs_clean(entity_name=None, path_str=".", l_done=None):
     l_refs = set()
     root_path = Path(path_str).resolve()
     root_uri = path_to_file_uri(str(root_path))
@@ -1326,17 +667,25 @@ async def get_refs_clean(entity_name=None, path_str="."):
     client, d_symbols, l_params = await get_all_symbols(path_str, entity_name)
     logger.info(f"Processed {len(d_symbols)} files, got {len(l_params)} uniq symbols.")
     logger.info(f"==l_params== {len(l_params)}")
-    l_params_left = l_params[:100]
+
+    d_line_symbol = {}
+    for params in l_params:
+        uri, func_line, real_func_char, name = params
+        d_line_symbol[f"{uri}\t{func_line}"] = params
+    l_params_left = l_params
 
     # will timeout and stucked
     # results = await client.stream_requests(client.send_references, l_params_left)
 
     l_done = set()
     results = []
+    timeout = -1  # default
+    if client.lang == "c":
+        timeout = 0.1
     while len(l_params_left):
         for params in l_params_left:
             try:
-                r = await client.send_references(*params)
+                r = await client.send_references(*params, timeout=timeout)
                 results.append(r)
                 r = "\t".join([str(j) for j in r[:3]])
                 l_done.add(r)
@@ -1356,7 +705,7 @@ async def get_refs_clean(entity_name=None, path_str="."):
         logger.info(f"==l_params_left== {len(l_params_left)}")
 
     n_symbols = 0
-    for uri, func_line, real_func_char, name, ref_result, dur in results:
+    for uri, func_line, real_func_char, func_name, ref_result, dur in results:
         if not ref_result:
             continue
         n_symbols += 1
@@ -1372,40 +721,86 @@ async def get_refs_clean(entity_name=None, path_str="."):
             range_ = ref.get("range", {})
             start = range_.get("start", {})
             line = start.get("line", "?")
-            # character = start.get("character", "?")
 
-            max_try_num = 1
-            _symbols = None
-            while max_try_num > 0:
-                try:
-                    _symbols = await client.send_document_symbol(ref_uri, timeout=5)
-                except LSPError as e:
-                    logger.debug(f"err: {e} for ref_uri:{ref_uri} start:{start}")
-                    max_try_num -= 1
-                    client, _, _ = await get_all_symbols(path_str, entity_name)
+            if not ref_result:
+                raise ValueError(
+                    f"No references found for func: {uri}:{func_line}:{real_func_char}"
+                )
+            n_symbols += 1
+            # ref_result = ref_result[4]
+            for i, ref in enumerate(ref_result, 1):
+                if isinstance(ref, str):  # err
+                    continue
+                    print(f"ref {repr(ref)}")
+                    raise
+                # continue
+                ref_uri = ref.get("uri", "<no-uri>")
+                logger.trace(f"ref_uri {ref_uri}")
+                if "tests" in ref_uri:
+                    continue
+                if "test_" in ref_uri:
+                    continue
+                range_ = ref.get("range", {})
+                start = range_.get("start", {})
+                line = start.get("line", "?")
+                character = start.get("character", "?")
+                _func_name = "?"
+                if line == "?" or character == "?":
+                    raise ValueError(
+                        f"  {i:02d}. {uri} @ Line {line}, Char {character}"
+                    )
 
-            _func_name = find_enclosing_function(_symbols, line)
-            # if not _func_name:  # import? or direct use
-            #     logger.error(f"no _func_name  {i:02d}. {uri} @ Line {line}, Char {character}")
-            #     continue
+                # character = start.get("character", "?")
+                func_key = f"{ref_uri}\t{line}"
+                if func_key in d_line_symbol:
+                    func_info = d_line_symbol[
+                        func_key
+                    ]  # uri, func_line, real_func_char, name
+                    _func_name = func_info[3]
+                else:
+                    max_try_num = 1
+                    _symbols = d_symbols.get(ref_uri)
+                    while not _symbols and max_try_num > 0:
+                        logger.warning(f"ref_uri {ref_uri} not in cache?")
+                        try:
+                            _symbols = await client.send_document_symbol(ref_uri)
+                            break
+                        except LSPError as e:
+                            logger.debug(
+                                f"err: {e} for ref_uri:{ref_uri} start:{start}"
+                            )
+                            max_try_num -= 1
+                            await asyncio.sleep(0.01)
+                            client, _, _ = await get_all_symbols(path_str, entity_name)
 
-            ref_uri_short = ref_uri[len_root_uri + 1 :]
-            if "test" in ref_uri_short:
-                continue
-            if "docs" in ref_uri_short:
-                continue
-            if "__init__.py" in ref_uri_short:
-                continue
-            if "cli.py" in ref_uri_short:
-                continue
-            # if ref_uri_short == uri_short: # 是否分析文件内部的调用
-            #     continue
-            invoke_info = f"{ref_uri_short}:{line + 1}:{_func_name}\tinvoke\t{uri_short}:{func_line}:{name}"
-            if invoke_info not in l_refs:
-                print(invoke_info)
-                l_refs.add(invoke_info)
-                if len(l_refs) % 100 == 0:
-                    logger.info(f"Processed {len(l_refs)} references")
+                    if not _symbols:
+                        continue
+                    _func_name = find_enclosing_function(_symbols, line)
+                    # if not _func_name:  # import? or direct use
+                    #     logger.error(f"no _func_name  {i:02d}. {uri} @ Line {line}, Char {character}")
+                    #     continue
+
+                ref_uri_short = ref_uri[len_root_uri + 1 :]
+
+                if "test" in ref_uri_short:
+                    continue
+                if "docs" in ref_uri_short:
+                    continue
+                if "__init__.py" in ref_uri_short:
+                    continue
+                if "cli.py" in ref_uri_short:
+                    continue
+
+                # if ref_uri_short == uri_short: # 是否分析文件内部的调用
+                #     continue
+                if _func_name is None:
+                    continue
+                invoke_info = f"{ref_uri_short}:{line + 1}:{_func_name}\tinvoke\t{uri_short}:{func_line + 1}:{func_name}"
+                if invoke_info not in l_refs:
+                    print(invoke_info)
+                    l_refs.add(invoke_info)
+                    if len(l_refs) % 100 == 0:
+                        logger.info(f"Processed {len(l_refs)} references")
 
     await client.shutdown()
     logger.info(f"Processed {len(l_refs)} references. n_symbols: {n_symbols}")
