@@ -408,7 +408,7 @@ async def get_refs(entity_name=None, path_str=".", l_done=None):
                 _line = "\n".join(_line.split("\n")[1:])
 
             real_func_char = check_real_func_char(
-                _line, line, func_char, full_name, kind
+                _line, line, func_char, full_name, kind, uri, func_line
             )
             ref_result = await client.send_references(
                 uri, line=func_line, character=real_func_char

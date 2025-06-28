@@ -15,15 +15,16 @@ ALLOWED_COMMANDS = ["uv --version", "pip --version"]
 
 def run_command(cmd, capture_output=True, text=True):
     """Run a command and return the result."""
+    if cmd not in ALLOWED_COMMANDS:
+        return False, "", f"Command '{cmd}' is not allowed"
     try:
-        if cmd in ALLOWED_COMMANDS:
-            result = subprocess.run(
-                shlex.split(cmd),
-                check=False,
-                capture_output=capture_output,
-                text=text,
-            )  # nosec: B603
-            return result.returncode == 0, result.stdout, result.stderr
+        result = subprocess.run(
+            shlex.split(cmd),
+            check=False,
+            capture_output=capture_output,
+            text=text,
+        )  # nosec: B603
+        return result.returncode == 0, result.stdout, result.stderr
     except Exception as e:
         return False, "", str(e)
 
