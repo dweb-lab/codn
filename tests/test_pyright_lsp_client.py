@@ -10,9 +10,8 @@ from unittest.mock import AsyncMock, patch  # Mock
 
 import pytest
 
+from codn.utils.lsp_core import LSPClientState, LSPConfig
 from codn.utils.base_lsp_client import (
-    LSPClientState,
-    LSPConfig,
     LSPError,
     BaseLSPClient,
     _should_process_file,

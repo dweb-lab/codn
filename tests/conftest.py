@@ -13,7 +13,8 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from loguru import logger
 
-from codn.utils.base_lsp_client import LSPConfig, BaseLSPClient, path_to_file_uri
+from codn.utils.lsp_core import LSPConfig
+from codn.utils.base_lsp_client import BaseLSPClient, path_to_file_uri
 
 
 # ==================== Test Configuration ====================
