@@ -1,5 +1,27 @@
 {
-  "include": ["."],
+  "venvPath": ".",
+  "venv": ".venv",
+  "exclude": [
+    ".venv",
+    "**/.venv/**",
+    "node_modules",
+    "build",
+    "dist",
+    "__pycache__",
+    "tests",
+    "docs",
+    "scripts",
+    "**/tests/**"
+  ],
+  "ignore": ["tests", "**/tests/**"],
+  "typeCheckingMode": "strict",
   "reportMissingImports": true,
+  "reportImplicitAny": true,
+  "reportUnusedVariable": true,
+  "reportUnknownMemberType": false,
+  "reportUnknownVariableType": false,
+  "reportUnknownParameterType": false,
+  "reportMissingParameterType": false,
+  "reportUnknownArgumentType": false,
   "pythonVersion": "3.12"
 }

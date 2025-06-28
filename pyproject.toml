@@ -27,6 +27,7 @@ test = [
     "pytest-mock>=3.10",
     "pytest-xdist>=3.0",
     "pytest-timeout>=2.1",
+    "pyfakefs",
 ]
 dev = [
     "pytest>=7.0",

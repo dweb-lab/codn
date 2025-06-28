@@ -11,7 +11,6 @@ from rich.panel import Panel
 # TaskProgressColumn
 # from rich.table import Table
 
-import asyncio
 
 from ..utils.os_utils import list_all_files_sync
 from codn.utils.base_lsp_client import (
@@ -57,7 +56,7 @@ def show_lsp_welcome() -> None:
 
 
 @app.command("search")
-def search(
+async def search(
     function_name: Annotated[
         str,
         typer.Argument(help="Function name to search snippet for"),
@@ -92,7 +91,7 @@ def search(
         console.print("[yellow]No Python files found[/yellow]")
         return
 
-    results = asyncio.run(get_snippet(function_name, str(path)))
+    results = await get_snippet(function_name, str(path))
     total_snippets = len(results)
 
     console.print()
@@ -125,7 +124,7 @@ def search(
 
 
 @app.command("refs")
-def find_references(
+async def find_references(
     function_name: Annotated[
         str,
         typer.Argument(help="Function name to find references for"),
@@ -162,7 +161,7 @@ def find_references(
         console.print("[yellow]No Python files found[/yellow]")
         return
 
-    results = asyncio.run(get_refs(function_name, str(path)))
+    results = await get_refs(function_name, str(path))
     total_refs = len(results)
 
     console.print()
