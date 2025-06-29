@@ -193,6 +193,8 @@ async def get_funcs_for_lines(
         file_name = f"sample.{lang}"
 
     uri = path_to_file_uri(str(full_path))
+    if not content:
+        content = open(os.path.join(path_str, file_name)).read()
     await client.send_did_open(uri, content, language_id)
 
     # Read content from client after opening
