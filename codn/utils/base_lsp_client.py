@@ -1,6 +1,5 @@
 import re
 import os
-import asyncio
 from pathlib import Path
 from codn.utils.lsp_core import BaseLSPClient, LSPError  # noqa
 from typing import Any
@@ -10,9 +9,49 @@ from codn.utils.os_utils import list_all_files, detect_dominant_languages
 from codn.utils.lsp_utils import extract_code, find_enclosing_function
 from urllib.parse import unquote, urlparse
 from watchfiles import awatch  # type: ignore[reportUnknownVariableType]
+from enum import IntEnum
 
-# Variable Constant Field Enum Constructor Namespace Property
-l_sym_ignore = [int(j) for j in "13 14 8 10 15 9 3 7".split()]
+
+class SymbolKind(IntEnum):
+    FILE = 1
+    MODULE = 2
+    NAMESPACE = 3
+    PACKAGE = 4
+    CLASS = 5
+    METHOD = 6
+    PROPERTY = 7
+    FIELD = 8
+    CONSTRUCTOR = 9
+    ENUM = 10
+    INTERFACE = 11
+    FUNCTION = 12
+    VARIABLE = 13
+    CONSTANT = 14
+    STRING = 15
+    NUMBER = 16
+    BOOLEAN = 17
+    ARRAY = 18
+    OBJECT = 19
+    KEY = 20
+    NULL = 21
+    ENUM_MEMBER = 22
+    STRUCT = 23
+    EVENT = 24
+    OPERATOR = 25
+    TYPE_PARAMETER = 26
+
+
+# Symbols to ignore in most traversals
+l_sym_ignore = [
+    SymbolKind.VARIABLE,
+    SymbolKind.CONSTANT,
+    SymbolKind.FIELD,
+    SymbolKind.ENUM,
+    SymbolKind.STRING,
+    SymbolKind.CONSTRUCTOR,
+    SymbolKind.NAMESPACE,
+    SymbolKind.PROPERTY,
+]
 
 
 def path_to_file_uri(path_str: str) -> str:
@@ -194,7 +233,11 @@ async def get_funcs_for_lines(
 
     uri = path_to_file_uri(str(full_path))
     if not content:
-        content = open(os.path.join(path_str, file_name)).read()
+        try:
+            content = Path(full_path).read_text(encoding="utf-8")
+        except (FileNotFoundError, PermissionError) as e:
+            logger.warning(f"Could not read file {full_path}: {e}")
+            content = ""
     await client.send_did_open(uri, content, language_id)
 
     # Read content from client after opening
@@ -204,7 +247,7 @@ async def get_funcs_for_lines(
     for sym in symbols:
         name = sym["name"]
         kind = sym["kind"]
-        if kind not in [12, 6, 5]:
+        if kind not in [SymbolKind.FUNCTION, SymbolKind.METHOD, SymbolKind.CLASS]:
             continue
         loc = sym["location"]
         start = loc["range"]["start"]["line"]
@@ -352,6 +395,75 @@ async def get_snippets(search_terms: list[str], path_str=".", file_path_or_patte
     return l_code_snippets
 
 
+async def _process_symbol_for_refs(sym, client, uri, root_uri, entity_name, l_done):
+    name = sym["name"]
+    if entity_name and name != entity_name:
+        return None
+
+    kind = sym["kind"]
+    if kind in [
+        SymbolKind.VARIABLE,
+        SymbolKind.CONSTANT,
+        SymbolKind.ENUM,
+        SymbolKind.FIELD,
+        SymbolKind.STRING,
+    ]:
+        return None
+    if kind not in [SymbolKind.FUNCTION, SymbolKind.METHOD, SymbolKind.CLASS]:
+        raise ValueError(
+            f"Unexpected kind value: {kind}, expected one of {[SymbolKind.FUNCTION, SymbolKind.METHOD, SymbolKind.CLASS]}"
+        )
+
+    if name == "__init__" and "containerName" in sym:
+        return None
+
+    loc = sym["location"]["range"]["start"]
+    func_line = loc["line"]
+    func_char = loc["character"]
+    full_name = name
+    if sym.get("containerName"):
+        container_name = sym["containerName"]
+        full_name = f"{container_name}.{name}"
+
+    if name == "main":
+        return None
+
+    logger.trace(f"{kind} - {full_name}")
+
+    symbols = await client.send_document_symbol(uri)
+    func_name = find_enclosing_function(symbols, func_line)
+    if func_name != name:
+        return None
+
+    if not uri.startswith(root_uri):
+        return None
+
+    if l_done and f"{uri}\t{func_line}\t{func_char}" in l_done:
+        return None
+
+    content = await client.read_file(uri)
+    line = "\n".join(content.split("\n")[func_line : func_line + 10])
+    _line = line
+    while _line.strip().startswith("#") or _line.strip().startswith("@"):
+        _line = "\n".join(_line.split("\n")[1:])
+
+    func_line, real_func_char = check_real_func_char(
+        _line, line, func_char, name, kind, uri, func_line
+    )
+    # assert func_line >=0
+    # assert real_func_char >=0
+    if real_func_char < 0:
+        return None
+    ref_result = await client.send_references(
+        uri, line=func_line, character=real_func_char
+    )
+
+    if not ref_result:
+        return None
+
+    return ref_result, func_name, func_line
+
+
 async def get_refs(entity_name=None, path_str=".", l_done=None):
     l_refs = set()
     client = await get_client(path_str)
@@ -362,90 +474,35 @@ async def get_refs(entity_name=None, path_str=".", l_done=None):
 
     n_symbols = 0
     for uri in client.open_files:
+        if "tests/" in uri or "test_" in uri:
+            continue
         uri_short = uri[len_root_uri + 1 :]
         symbols = await client.send_document_symbol(uri)
 
         for sym in symbols:
-            name = sym["name"]
-            if entity_name and name != entity_name:
-                continue
-            kind = sym["kind"]
-            if kind in [13, 14, 10, 8]:  # Variable Constant Enum Field
-                continue
-            if kind not in [12, 6, 5]:  # func method class
-                raise ValueError(
-                    f"Unexpected kind value: {kind}, expected one of [12, 6, 5]"
-                )
-            if name == "__init__" and "containerName" in sym:
-                continue
-            loc = sym["location"]["range"]["start"]
-            func_line = loc["line"]
-            func_char = loc["character"]
-            full_name = name
-            if sym.get("containerName"):
-                container_name = sym["containerName"]
-                full_name = f"{container_name}.{name}"
-            if name == "main":
-                continue
-            logger.trace(f"{kind} - {full_name}")
-
-            # just check find_enclosing_function
-            func_name = find_enclosing_function(symbols, func_line)
-            if func_name != name:
-                continue
-                # raise ValueError(f"Expected {name}, got {func_name}")
-
-            if not uri.startswith(root_uri):
-                continue
-
-            # func_char wrong
-            # if func_char not in [0, 4, 8, 12, 16, 20, 24]:
-            # if func_char not in [0, 1, 4, 8, 12, 16, 20, 24]:
-            #     raise ValueError(
-            #         f"func: {func_name} in {uri_short}:{func_line + 1} func_char is {func_char}"
-            #     )
-
-            ref_result = None
-            if l_done and f"{uri}\t{func_line}\t{func_char}" in l_done:
-                continue
-
-            content = await client.read_file(uri)
-            line = "\n".join(content.split("\n")[func_line : func_line + 10])
-            _line = line
-            while _line.strip().startswith("#") or _line.strip().startswith("@"):
-                _line = "\n".join(_line.split("\n")[1:])
-
-            real_func_char = check_real_func_char(
-                _line, line, func_char, full_name, kind, uri, func_line
+            result = await _process_symbol_for_refs(
+                sym, client, uri, root_uri, entity_name, l_done
             )
-            ref_result = await client.send_references(
-                uri, line=func_line, character=real_func_char
-            )
-
-            if not ref_result:
+            if not result:
                 continue
-                raise ValueError(
-                    f"No references found for func: {uri}:{func_line}:{func_char} kind: {kind}"
-                )
+
+            ref_result, func_name, func_line = result
             n_symbols += 1
             ref_result = ref_result[4]
+            if not ref_result:
+                continue
             for i, ref in enumerate(ref_result, 1):
                 if isinstance(ref, str):  # err
                     continue
-                    print(f"ref {repr(ref)}")
-                    raise
-                # continue
                 ref_uri = ref.get("uri", "<no-uri>")
                 logger.trace(f"ref_uri {ref_uri}")
-                if "tests" in ref_uri:
+                if "tests" in ref_uri or "test_" in ref_uri:
                     continue
-                if "test_" in ref_uri:
-                    continue
+
                 range_ = ref.get("range", {})
                 start = range_.get("start", {})
                 line = start.get("line", "?")
                 character = start.get("character", "?")
-                _func_name = "?"
                 if line == "?" or character == "?":
                     raise ValueError(
                         f"  {i:02d}. {uri} @ Line {line}, Char {character}"
@@ -453,25 +510,11 @@ async def get_refs(entity_name=None, path_str=".", l_done=None):
 
                 _symbols = await client.send_document_symbol(ref_uri)
                 _func_name = find_enclosing_function(_symbols, line)
-                # if not _func_name:  # import? or direct use
-                #     logger.error(f"no _func_name  {i:02d}. {uri} @ Line {line}, Char {character}")
-                #     continue
 
                 ref_uri_short = ref_uri[len_root_uri + 1 :]
-
-                if "test" in ref_uri_short:
-                    continue
-                if "docs" in ref_uri_short:
-                    continue
-                if "__init__.py" in ref_uri_short:
-                    continue
-                if "cli.py" in ref_uri_short:
-                    continue
-
-                # if ref_uri_short == uri_short: # 是否分析文件内部的调用
-                #     continue
                 if _func_name is None:
                     continue
+
                 invoke_info = f"{ref_uri_short}:{line + 1}:{_func_name}\tinvoke\t{uri_short}:{func_line}:{func_name}"
                 if invoke_info not in l_refs:
                     l_refs.add(invoke_info)
@@ -483,23 +526,33 @@ async def get_refs(entity_name=None, path_str=".", l_done=None):
     return l_refs
 
 
-def check_real_func_char(_line, line, real_func_char, full_name, kind, uri, func_line):
-    if full_name.startswith("__builtin___"):
-        full_name = full_name[12:]
+def check_real_func_char(_line, line, func_char, full_name, kind, uri, func_line):
     real_func_char = -1
     raw_line = line
-    if kind in [12, 6]:
+    name_for_search = f"{full_name}("
+    if kind in [SymbolKind.FUNCTION, SymbolKind.METHOD]:
         final_prefix = None
-        if full_name in raw_line:
-            final_prefix = raw_line.index(full_name)
-        if final_prefix is not None:
+        raw_first_line = raw_line.split("\n")[0]
+        if name_for_search in raw_first_line:
+            final_prefix = raw_first_line.index(name_for_search)
             real_func_char = final_prefix
-        if not raw_line[real_func_char:].strip().startswith(full_name):
-            raw_first_line = repr(raw_line.split("\n")[0])
-            raise ValueError(
-                f"Unexpected def line={raw_first_line} full_name={full_name} _line={_line} uri={uri}:{func_line}"
+        elif name_for_search in raw_line:
+            prefix_idx = raw_line.index(name_for_search)
+            prefix_str = raw_line[:prefix_idx]
+            delta = prefix_str.count("\n")
+            func_line += delta
+            prefix_str = prefix_str.rsplit("\n", 1)[-1]
+            real_func_char = len(prefix_str)
+        else:
+            # wrapper?
+            # if not raw_line[real_func_char:].strip().startswith(full_name):
+            # raise ValueError
+            if "@pytest" in raw_line:
+                return func_line, real_func_char
+            logger.error(
+                f"Unexpected def line={raw_line} full_name={full_name} _line={_line} uri={uri}:{func_line}"
             )
-    elif kind in [5]:
+    elif kind in [SymbolKind.CLASS]:
         if full_name in raw_line:
             final_prefix = raw_line.index(full_name)
             real_func_char = final_prefix
@@ -509,7 +562,7 @@ def check_real_func_char(_line, line, real_func_char, full_name, kind, uri, func
                     f"Unexpected class raw_first_line={raw_first_line} _line={_line} full_name={full_name} uri={uri}:{func_line}"
                 )
 
-    return real_func_char
+    return func_line, real_func_char
 
 
 async def get_all_symbols(path_str=".", entity_name=None):
@@ -518,7 +571,6 @@ async def get_all_symbols(path_str=".", entity_name=None):
 
     client = await get_client(path_str)
     l_uri = [(uri, 1) for uri in client.open_files]
-    # result = await client.batch_requests(client.send_document_symbol, l_uri)
     result = await client.stream_requests(
         client.send_document_symbol, l_uri, max_concurrency=20, show_progress=False
     )
@@ -539,7 +591,11 @@ async def get_all_symbols(path_str=".", entity_name=None):
             kind = sym["kind"]
             if kind in l_sym_ignore:
                 continue
-            if kind not in [12, 6, 5]:  # func method class
+            if kind not in [
+                SymbolKind.FUNCTION,
+                SymbolKind.METHOD,
+                SymbolKind.CLASS,
+            ]:  # func method class
                 raise ValueError(f"Unexpected kind: {kind}, expected one of [12, 6, 5]")
             if name == "__init__" and "containerName" in sym:
                 continue
@@ -572,7 +628,7 @@ async def get_all_symbols(path_str=".", entity_name=None):
             if full_name == "(anonymous struct)":
                 continue
 
-            real_func_char = check_real_func_char(
+            func_line, real_func_char = check_real_func_char(
                 _line,
                 line,
                 func_char,
@@ -596,22 +652,16 @@ async def get_refs_clean(entity_name=None, path_str=".", l_done=None):
 
     client, d_symbols, l_params = await get_all_symbols(path_str, entity_name)
     logger.info(f"Processed {len(d_symbols)} files, got {len(l_params)} uniq symbols.")
-    logger.info(f"==l_params== {len(l_params)}")
 
-    d_line_symbol = {}
-    for params in l_params:
-        uri, func_line, real_func_char, _ = params
-        d_line_symbol[f"{uri}\t{func_line}"] = params
-    l_params_left = l_params
+    # will timeout and stuck forever
+    # results = await client.stream_requests(client.send_references, l_params)
 
-    # will timeout and stucked
-    # results = await client.stream_requests(client.send_references, l_params_left)
-
-    l_done = set()
-    results = []
     timeout = -1  # default
     if client.lang == "c":
-        timeout = 0.1
+        timeout = 1
+    l_done = set()
+    results = []
+    l_params_left = l_params
     while len(l_params_left):
         for params in l_params_left:
             try:
@@ -634,106 +684,51 @@ async def get_refs_clean(entity_name=None, path_str=".", l_done=None):
         l_params_left = l_params_left_new
         logger.info(f"==l_params_left== {len(l_params_left)}")
 
-    n_symbols = 0
-    for uri, func_line, real_func_char, func_name, ref_result, _ in results:
+    for uri, func_line, _, func_name, ref_result, _ in results:
         if not ref_result:
             continue
-        n_symbols += 1
 
         uri_short = uri[len_root_uri + 1 :]
-        for i, ref in enumerate(ref_result, 1):
+        for ref in ref_result:
+            if isinstance(ref, str):  # err
+                continue
+
             ref_uri = ref.get("uri", "<no-uri>")
-            logger.trace(f"ref_uri {ref_uri}")
-            if "tests" in ref_uri:
+            if "tests" in ref_uri or "test_" in ref_uri:
                 continue
-            if "test_" in ref_uri:
-                continue
+
             range_ = ref.get("range", {})
             start = range_.get("start", {})
             line = start.get("line", "?")
+            character = start.get("character", "?")
 
-            if not ref_result:
-                raise ValueError(
-                    f"No references found for func: {uri}:{func_line}:{real_func_char}"
+            if line == "?" or character == "?":
+                logger.warning(
+                    f"Invalid reference location for {func_name} in {uri_short}"
                 )
-            n_symbols += 1
-            # ref_result = ref_result[4]
-            for i, ref in enumerate(ref_result, 1):
-                if isinstance(ref, str):  # err
-                    continue
-                    print(f"ref {repr(ref)}")
-                    raise
-                # continue
-                ref_uri = ref.get("uri", "<no-uri>")
-                logger.trace(f"ref_uri {ref_uri}")
-                if "tests" in ref_uri:
-                    continue
-                if "test_" in ref_uri:
-                    continue
-                range_ = ref.get("range", {})
-                start = range_.get("start", {})
-                line = start.get("line", "?")
-                character = start.get("character", "?")
-                _func_name = "?"
-                if line == "?" or character == "?":
-                    raise ValueError(
-                        f"  {i:02d}. {uri} @ Line {line}, Char {character}"
-                    )
+                continue
 
-                # character = start.get("character", "?")
-                func_key = f"{ref_uri}\t{line}"
-                if func_key in d_line_symbol:
-                    func_info = d_line_symbol[
-                        func_key
-                    ]  # uri, func_line, real_func_char, name
-                    _func_name = func_info[3]
-                else:
-                    max_try_num = 1
-                    _symbols = d_symbols.get(ref_uri)
-                    while not _symbols and max_try_num > 0:
-                        logger.warning(f"ref_uri {ref_uri} not in cache?")
-                        try:
-                            _symbols = await client.send_document_symbol(ref_uri)
-                            break
-                        except LSPError as e:
-                            logger.debug(
-                                f"err: {e} for ref_uri:{ref_uri} start:{start}"
-                            )
-                            max_try_num -= 1
-                            await asyncio.sleep(0.01)
-                            client, _, _ = await get_all_symbols(path_str, entity_name)
-
-                    if not _symbols:
-                        continue
-                    _func_name = find_enclosing_function(_symbols, line)
-                    # if not _func_name:  # import? or direct use
-                    #     logger.error(f"no _func_name  {i:02d}. {uri} @ Line {line}, Char {character}")
-                    #     continue
-
-                ref_uri_short = ref_uri[len_root_uri + 1 :]
-
-                if "test" in ref_uri_short:
-                    continue
-                if "docs" in ref_uri_short:
-                    continue
-                if "__init__.py" in ref_uri_short:
-                    continue
-                if "cli.py" in ref_uri_short:
+            _symbols = d_symbols.get(ref_uri)
+            if not _symbols:
+                try:
+                    _symbols = await client.send_document_symbol(ref_uri)
+                except LSPError as e:
+                    logger.debug(f"Error getting symbols for {ref_uri}: {e}")
                     continue
 
-                # if ref_uri_short == uri_short: # 是否分析文件内部的调用
-                #     continue
-                if _func_name is None:
-                    continue
-                invoke_info = f"{ref_uri_short}:{line + 1}:{_func_name}\tinvoke\t{uri_short}:{func_line + 1}:{func_name}"
-                if invoke_info not in l_refs:
-                    print(invoke_info)
-                    l_refs.add(invoke_info)
-                    if len(l_refs) % 100 == 0:
-                        logger.info(f"Processed {len(l_refs)} references")
+            _func_name = find_enclosing_function(_symbols, line)
+            if not _func_name:
+                continue
+
+            ref_uri_short = ref_uri[len_root_uri + 1 :]
+
+            invoke_info = f"{ref_uri_short}:{line + 1}:{_func_name}\tinvoke\t{uri_short}:{func_line + 1}:{func_name}"
+            if invoke_info not in l_refs:
+                print(invoke_info)
+                l_refs.add(invoke_info)
 
     await client.shutdown()
-    logger.info(f"Processed {len(l_refs)} references. n_symbols: {n_symbols}")
+    logger.info(f"Processed {len(l_refs)} references.")
     return l_refs
 
 
@@ -763,9 +758,13 @@ async def _traverse(client, len_root_uri, start_entities, root_uri):
                     continue
 
             kind = sym["kind"]
-            if kind in [13, 14]:  # Variable Constant
+            if kind in [SymbolKind.VARIABLE, SymbolKind.CONSTANT]:  # Variable Constant
                 continue
-            if kind not in [12, 6, 5]:  # func method class
+            if kind not in [
+                SymbolKind.FUNCTION,
+                SymbolKind.METHOD,
+                SymbolKind.CLASS,
+            ]:  # func method class
                 raise ValueError(
                     f"Unexpected kind value: {kind}, expected one of [12, 6, 5]"
                 )
@@ -803,11 +802,15 @@ async def _traverse(client, len_root_uri, start_entities, root_uri):
             while _line.strip().startswith("#") or _line.strip().startswith("@"):
                 _line = "\n".join(_line.split("\n")[1:])
 
-            real_func_char = check_real_func_char(
-                _line, line_content, func_char, full_name, kind, uri, func_line
+            func_line, real_func_char = check_real_func_char(
+                _line, line_content, func_char, name, kind, uri, func_line
             )
 
-            if kind in [12, 6, 5]:  # func, method, class
+            if kind in [
+                SymbolKind.FUNCTION,
+                SymbolKind.METHOD,
+                SymbolKind.CLASS,
+            ]:  # func, method, class
                 ref_result = await client.send_references(
                     uri, line=func_line, character=real_func_char
                 )
@@ -836,15 +839,13 @@ async def _traverse(client, len_root_uri, start_entities, root_uri):
 
                 _symbols = await client.send_document_symbol(ref_uri)
                 _func_name = find_enclosing_function(_symbols, line)
+                if not _func_name:  # TODO: import? or direct use
+                    logger.error(
+                        f"no _func_name  {i:02d}. {uri} @ Line {line}, Char {character}"
+                    )
+                    continue
                 ref_uri_short = ref_uri[len_root_uri + 1 :]
-                if "test" in ref_uri_short:
-                    continue
-                if "docs" in ref_uri_short:
-                    continue
-                if "__init__.py" in ref_uri_short:
-                    continue
-                if "cli.py" in ref_uri_short:
-                    continue
+
                 invoke_info = f"{ref_uri_short}:{line + 1}:{_func_name}\tinvoke\t{uri_short}:{func_line}:{func_name}"
                 if invoke_info not in l_refs:
                     l_refs.add(invoke_info)
@@ -933,7 +934,7 @@ class CallGraphAnalyzer:
             text = await self.client.read_file(uri)
             # 3. 遍历函数符号，提取调用关系
             for sym in symbols:
-                if sym["kind"] in [12, 6]:
+                if sym["kind"] in [SymbolKind.FUNCTION, SymbolKind.METHOD]:
                     caller_name = sym["name"]
                     caller_range = sym["location"]["range"]
                     start_line = caller_range["start"]["line"]
